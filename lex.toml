@@ -1,0 +1,12 @@
+[package]
+name    = "lex-games"
+version = "0.1.0"
+lex     = "0.9.11"
+license = "EUPL-1.2"
+description = "Capability-gated, verifiable turn games + the arena verifier (replay a trail -> score)."
+
+# The framework (src/lex_games.lex) and the verifier are std + lex-trail only —
+# deliberately lean so the hosted arena verify-worker can clone and build a small
+# image (it does not need the lex-robot demo/robot tree).
+[dependencies]
+lex-trail = { git = "https://github.com/alpibrusl/lex-trail" }

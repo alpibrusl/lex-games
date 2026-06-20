@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# lex-games CLI — thin launcher. Lex CLI positional args are JSON values, so this
+# JSON-quotes string args for you.
+#   games verify bazaar trail.jsonl
+#   games export /tmp/lex-shop-123.db trail.jsonl
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+jq_str() { printf '"%s"' "$1"; }   # naive JSON-string quote (paths/ids have no quotes)
+
+cmd="${1:-}"; shift || true
+case "$cmd" in
+  verify)
+    game="${1:?game}"; trail="${2:?trail.jsonl}"
+    exec lex run --allow-effects io "$HERE/src/arena/verify.lex" verify "$(jq_str "$game")" "$(jq_str "$trail")"
+    ;;
+  export)
+    db="${1:?trail.db}"; out="${2:?out.jsonl}"
+    exec lex run --allow-effects fs_write,io,sql,time "$HERE/src/arena/export.lex" export "$(jq_str "$db")" "$(jq_str "$out")"
+    ;;
+  *)
+    echo "usage: games verify <game> <trail.jsonl> | games export <trail.db> <out.jsonl>" >&2
+    exit 2
+    ;;
+esac

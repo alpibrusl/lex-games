@@ -1,0 +1,48 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      LEX_VERSION: v0.9.11
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install lex toolchain
+        run: |
+          set -euo pipefail
+          tgt=x86_64-unknown-linux-gnu
+          url="https://github.com/alpibrusl/lex-lang/releases/download/${LEX_VERSION}/lex-${LEX_VERSION}-${tgt}.tar.gz"
+          curl -fsSL "$url" -o /tmp/lex.tgz
+          tar -xzf /tmp/lex.tgz -C /tmp
+          sudo mv "/tmp/lex-${LEX_VERSION}-${tgt}/lex" /usr/local/bin/lex
+          lex version
+
+      - name: Type-check
+        run: |
+          set -euo pipefail
+          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/arena/verify.lex src/arena/export.lex; do
+            echo "== $f =="; lex check "$f"
+          done
+
+      - name: Verify the sample trail (honest → verified, tampered → rejected)
+        run: |
+          set -euo pipefail
+          out="$(lex run --allow-effects io src/arena/verify.lex verify '"bazaar"' '"testdata/bazaar-sample.jsonl"')"
+          echo "$out"
+          echo "$out" | grep -q '"verified":true' || { echo "FAIL: sample should verify"; exit 1; }
+
+          sed 's/Teapot/Teap0t/' testdata/bazaar-sample.jsonl > /tmp/bad.jsonl
+          bad="$(lex run --allow-effects io src/arena/verify.lex verify '"bazaar"' '"/tmp/bad.jsonl"' || true)"
+          echo "$bad"
+          echo "$bad" | grep -q '"verified":false' || { echo "FAIL: tampered trail should be rejected"; exit 1; }
+          echo "ALL GREEN"
