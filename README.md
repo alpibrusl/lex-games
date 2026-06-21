@@ -58,6 +58,21 @@ lex run --allow-effects io src/arena/verify.lex verify '"bazaar"' '"/tmp/bad.jso
 
 Or via the launcher (JSON-quotes args for you): `cli/games verify bazaar testdata/bazaar-sample.jsonl`.
 
+## Play / verify as MCP tools
+
+The `cli/games` launcher is [ACLI](https://github.com/alpibrusl/acli)-compliant —
+`games introspect` emits a machine-readable command tree and `games skill` emits a
+[SKILL.md](SKILL.md). Point [`acli-mcp`](https://github.com/alpibrusl/acli-mcp) at
+it and the commands become MCP tools an agent can call:
+
+```sh
+ACLI_BIN=games python -m acli_mcp      # exposes verify / export as MCP tools
+```
+
+`verify`'s stdout is the JSON verdict (the trailing exit-code line `lex run`
+prints is stripped by the launcher), so the tool result is the verdict object and
+the 0/1 verified/rejected signal is the process exit code.
+
 ## Layout
 
 ```
