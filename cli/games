@@ -1,24 +1,114 @@
 #!/usr/bin/env bash
-# lex-games CLI — thin launcher. Lex CLI positional args are JSON values, so this
-# JSON-quotes string args for you.
-#   games verify bazaar trail.jsonl
-#   games export /tmp/lex-shop-123.db trail.jsonl
+# lex-games CLI — ACLI-compliant launcher.
+#
+# Two faces:
+#   • humans:  games verify bazaar trail.jsonl
+#              games export /tmp/lex-shop-123.db trail.jsonl
+#   • agents:  games introspect   → machine-readable command tree (JSON)
+#              games skill         → agentskills.io SKILL.md
+#
+# ACLI (alpibrusl/acli) shape: `introspect` lets acli-mcp turn this binary into
+# MCP tools (ACLI_BIN=games), so an agent can verify/export game trails as MCP
+# tool calls. acli-mcp appends `--output json` to every invocation and parses the
+# leaf command's stdout as JSON — our verify/export already emit JSON verdicts.
+#
+# Lex CLI positional args are JSON values, so this JSON-quotes string args for you.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
+VERSION="0.1.0"
 jq_str() { printf '"%s"' "$1"; }   # naive JSON-string quote (paths/ids have no quotes)
+
+# Run a lex entrypoint and emit clean stdout. `lex run` prints the function's
+# returned Int (the intended exit code) as a trailing line after the JSON; we
+# strip that line, print the rest, and exit WITH that code — so callers (humans
+# and acli-mcp) get parseable JSON, and the 0/1 verified/rejected signal is
+# preserved as the process exit status.
+run_lex() {
+  local out rc last
+  out="$(lex run "$@")" && rc=0 || rc=$?   # capture rc without tripping set -e
+  last="$(printf '%s\n' "$out" | tail -n1)"
+  if printf '%s' "$last" | grep -Eq '^[0-9]+$'; then
+    printf '%s\n' "$out" | sed '$d'   # drop the trailing return-value line
+    exit "$last"
+  fi
+  printf '%s\n' "$out"
+  exit "$rc"
+}
+
+# Drop ACLI-injected flags acli-mcp adds (`--output json`); we always emit JSON.
+# Leaves the real positionals in place for the subcommand handlers below.
+args=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --output) shift 2 || true ;;   # `--output json`
+    --output=*) shift ;;
+    *) args+=("$1"); shift ;;
+  esac
+done
+set -- "${args[@]:-}"
 
 cmd="${1:-}"; shift || true
 case "$cmd" in
   verify)
     game="${1:?game}"; trail="${2:?trail.jsonl}"
-    exec lex run --allow-effects io "$HERE/src/arena/verify.lex" verify "$(jq_str "$game")" "$(jq_str "$trail")"
+    run_lex --allow-effects io "$HERE/src/arena/verify.lex" verify "$(jq_str "$game")" "$(jq_str "$trail")"
     ;;
   export)
     db="${1:?trail.db}"; out="${2:?out.jsonl}"
-    exec lex run --allow-effects fs_write,io,sql,time "$HERE/src/arena/export.lex" export "$(jq_str "$db")" "$(jq_str "$out")"
+    run_lex --allow-effects fs_write,io,sql,time "$HERE/src/arena/export.lex" export "$(jq_str "$db")" "$(jq_str "$out")"
+    ;;
+  introspect)
+    # ACLI command tree (lex SDK shape: subcommands/flags/positionals). acli-mcp
+    # walks this to register one MCP tool per leaf command.
+    cat <<JSON
+{
+  "name": "games",
+  "version": "$VERSION",
+  "description": "Verify and export Lex arena game trails.",
+  "flags": [],
+  "subcommands": [
+    {
+      "name": "verify",
+      "description": "Replay a recorded game trail through the deterministic rules and recompute the authoritative score. Prints a JSON verdict; exit 0 if verified, 1 if rejected.",
+      "idempotent": true,
+      "flags": [],
+      "positionals": [
+        { "name": "game", "description": "Game name (e.g. bazaar | template).", "required": true },
+        { "name": "trail", "description": "Path to the trail JSONL file to verify.", "required": true }
+      ]
+    },
+    {
+      "name": "export",
+      "description": "Export a hash-chained trail from a play-server SQLite store to portable JSONL.",
+      "idempotent": false,
+      "flags": [],
+      "positionals": [
+        { "name": "db", "description": "Path to the trail SQLite database.", "required": true },
+        { "name": "out", "description": "Output JSONL file path.", "required": true }
+      ]
+    }
+  ]
+}
+JSON
+    ;;
+  skill)
+    exec cat "$HERE/SKILL.md"
+    ;;
+  ""|-h|--help|help)
+    cat >&2 <<'USAGE'
+games — verify and export Lex arena game trails
+
+  games verify <game> <trail.jsonl>   replay a trail, recompute the score (JSON verdict)
+  games export <trail.db> <out.jsonl> export a trail store to portable JSONL
+  games introspect                    machine-readable command tree (JSON, for acli-mcp)
+  games skill                         agentskills.io SKILL.md
+
+As MCP tools:  ACLI_BIN=games  (via alpibrusl/acli-mcp)
+USAGE
+    [ -z "$cmd" ] && exit 2 || exit 0
     ;;
   *)
-    echo "usage: games verify <game> <trail.jsonl> | games export <trail.db> <out.jsonl>" >&2
+    echo "games: unknown command '$cmd' (try: games help)" >&2
     exit 2
     ;;
 esac

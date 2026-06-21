@@ -46,3 +46,15 @@ jobs:
           echo "$bad"
           echo "$bad" | grep -q '"verified":false' || { echo "FAIL: tampered trail should be rejected"; exit 1; }
           echo "ALL GREEN"
+
+      - name: ACLI surface (introspect is valid JSON; launcher emits clean verdict)
+        run: |
+          set -euo pipefail
+          # introspect must be valid JSON and list verify/export
+          python3 -c "import json,sys; d=json.load(sys.stdin); names=[s['name'] for s in d['subcommands']]; assert names==['verify','export'], names; print('introspect ok:', names)" < <(cli/games introspect --output json)
+          # the launcher strips lex run's trailing exit-code line → stdout is one JSON object (what acli-mcp parses)
+          v="$(cli/games verify bazaar testdata/bazaar-sample.jsonl --output json)"
+          echo "$v" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['verified'] is True; print('launcher verdict ok')"
+          [ "$(printf '%s\n' "$v" | wc -l)" -eq 1 ] || { echo "FAIL: launcher stdout must be a single JSON line"; exit 1; }
+          cli/games skill | head -1 | grep -q '^---$' || { echo "FAIL: skill must emit SKILL.md frontmatter"; exit 1; }
+          echo "ACLI GREEN"
