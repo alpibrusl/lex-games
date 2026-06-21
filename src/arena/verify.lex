@@ -14,21 +14,30 @@
 import "std.io"  as io
 import "std.str" as str
 
-import "./trail_file"   as tf
-import "../games/bazaar" as bazaar
+import "./trail_file"     as tf
+import "../games/bazaar"   as bazaar
+import "../games/template" as template
 
+# Register a new game here: add an `if game == "<name>"` branch that reads the
+# trail, calls your game's verdict/verdict_json, and returns 0 (verified) or 1.
+# (See docs/ADDING_A_GAME.md.) The read+print+return shape is identical per game.
 fn verify(game :: Str, trail_path :: Str) -> [io] Int {
-  if game != "bazaar" {
-    let _ := io.print(str.concat("{\"verified\":false,\"error\":\"unknown game: ", str.concat(game, "\"}")))
-    1
-  } else {
-    match tf.read_jsonl(trail_path) {
-      Err(e) => { let _ := io.print(str.concat("{\"verified\":false,\"error\":\"", str.concat(e, "\"}"))) 1 },
-      Ok(lines) => {
+  match tf.read_jsonl(trail_path) {
+    Err(e) => { let _ := io.print(str.concat("{\"verified\":false,\"error\":\"", str.concat(e, "\"}"))) 1 },
+    Ok(lines) => {
+      if game == "bazaar" {
         let v := bazaar.verdict(lines)
         let _ := io.print(bazaar.verdict_json(v))
         if v.verified { 0 } else { 1 }
-      },
-    }
+      } else {
+      if game == "template" {
+        let v := template.verdict(lines)
+        let _ := io.print(template.verdict_json(v))
+        if v.verified { 0 } else { 1 }
+      } else {
+        let _ := io.print(str.concat("{\"verified\":false,\"error\":\"unknown game: ", str.concat(game, "\"}")))
+        1
+      }}
+    },
   }
 }

@@ -64,12 +64,21 @@ Or via the launcher (JSON-quotes args for you): `cli/games verify bazaar testdat
 src/
   lex_games.lex          the framework: gate / match-bound tokens / record / verify_log / all_events
   games/bazaar.lex       Bazaar Draft rules + replay (the deterministic referee)
+  games/template.lex     TEMPLATE — copy this to start a new game's verifier
   arena/trail_file.lex   portable JSONL trail format (self-verifying; matches the finance arena)
   arena/export.lex       sqlite lex-trail → JSONL (client side, after a local match)
   arena/verify.lex       JSONL trail → verdict (server side: integrity + replay + score)
 cli/games                thin launcher
+docs/ADDING_A_GAME.md    how to add your own game (the game contract + steps)
 testdata/                a real sample trail (CI verifies it)
 ```
+
+## Add your own game
+
+See **[docs/ADDING_A_GAME.md](docs/ADDING_A_GAME.md)**. In short: copy
+`src/games/template.lex`, implement four pure pieces (rules · replay · verdict ·
+verdict_json), register a branch in `src/arena/verify.lex`. The framework handles
+the capability gate, signed tokens, the hash-chained trail, and the leaderboard.
 
 ## Where the games are *played*
 
