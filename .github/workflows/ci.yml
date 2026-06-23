@@ -30,7 +30,7 @@ jobs:
       - name: Type-check
         run: |
           set -euo pipefail
-          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/robot_task.lex src/arena/verify.lex src/arena/leaderboard.lex src/arena/export.lex; do
+          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/robot_task.lex src/arena/verify.lex src/arena/leaderboard.lex src/arena/export.lex tools/gen_robot_structured.lex; do
             echo "== $f =="; lex check "$f"
           done
 
@@ -55,6 +55,20 @@ jobs:
           rbad="$(lex run --allow-effects io src/arena/verify.lex verify '"robot_task"' '"/tmp/bad_robot.jsonl"' || true)"
           echo "$rbad"
           echo "$rbad" | grep -q '"verified":false' || { echo "FAIL: tampered robot trail should be rejected"; exit 1; }
+
+          # grant legality re-derivation (structured SkillOutcome payloads):
+          # an in-workspace reached move is legal; an out-of-workspace move that
+          # CLAIMS reached is an unauthorized success → legal:false → verified:false
+          # (even though the trail is intact, linked, and goal_met).
+          sl="$(lex run --allow-effects io src/arena/verify.lex verify '"robot_task"' '"testdata/policy/structured_legal.jsonl"')"
+          echo "$sl"
+          echo "$sl" | grep -q '"verified":true' || { echo "FAIL: authorized run should verify"; exit 1; }
+          echo "$sl" | grep -q '"legal":true' || { echo "FAIL: in-grant move should be legal"; exit 1; }
+          echo "$sl" | grep -q '"legal_checked":1' || { echo "FAIL: legality should have been re-checked"; exit 1; }
+          si="$(lex run --allow-effects io src/arena/verify.lex verify '"robot_task"' '"testdata/policy/structured_illegal.jsonl"' || true)"
+          echo "$si"
+          echo "$si" | grep -q '"legal":false' || { echo "FAIL: out-of-grant move must be illegal"; exit 1; }
+          echo "$si" | grep -q '"verified":false' || { echo "FAIL: unauthorized success must not verify"; exit 1; }
           echo "ALL GREEN"
 
       - name: Policy-eval leaderboard (rank rollouts; cheat trails disqualified)
@@ -71,6 +85,10 @@ jobs:
           cli/games leaderboard /tmp/cheat.json --output json | tee /tmp/cb.json
           python3 -c "import json; d=json.load(open('/tmp/cb.json')); c=[r for r in d['ranked'] if r['label']=='cheater'][0]; assert d['winner']=='honest',d['winner']; assert c['verified'] is False,'tampered trail must be disqualified'; print('cheat-resistance ok')"
           rm -f testdata/policy/_cheater.jsonl
+          # authority-resistance: a policy that 'won' by exceeding its grant is DQ'd,
+          # even with an identical raw score to the authorized winner
+          cli/games leaderboard testdata/policy/leaderboard_authority.json --output json | tee /tmp/au.json
+          python3 -c "import json; d=json.load(open('/tmp/au.json')); og=[r for r in d['ranked'] if r['label']=='over_grant_policy'][0]; assert d['winner']=='authorized_policy',d['winner']; assert og['verified'] is False,'over-grant policy must be disqualified'; print('authority-resistance ok')"
           echo "LEADERBOARD GREEN"
 
       - name: ACLI surface (introspect is valid JSON; launcher emits clean verdict)
