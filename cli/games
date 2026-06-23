@@ -73,7 +73,7 @@ case "$cmd" in
       "idempotent": true,
       "flags": [],
       "positionals": [
-        { "name": "game", "description": "Game name (e.g. bazaar | template).", "required": true },
+        { "name": "game", "description": "Game name (e.g. bazaar | robot_task | template).", "required": true },
         { "name": "trail", "description": "Path to the trail JSONL file to verify.", "required": true }
       ]
     },

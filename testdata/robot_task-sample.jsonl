@@ -1,0 +1,5 @@
+{"id":"dbcc70365e3f9892c366a64f6d57f745d16345e8d587b9ef8da8f1fef6f79445","kind":"task_started","parent":"","payload_json":"{}","ts_ms":1781955600000}
+{"id":"fe2cc07703b190f9f190901739322456f359cf8e251326e63ed99681a57679b7","kind":"perceive","parent":"dbcc70365e3f9892c366a64f6d57f745d16345e8d587b9ef8da8f1fef6f79445","payload_json":"{\"detail\":\"joints ok\"}","ts_ms":1781955601000}
+{"id":"c8644d6a71f4e57bb51f2c829c1998a7e181097df203149d938be768ab1e4499","kind":"plan","parent":"fe2cc07703b190f9f190901739322456f359cf8e251326e63ed99681a57679b7","payload_json":"{\"detail\":\"target 0.5,0.5,0.2\"}","ts_ms":1781955602000}
+{"id":"1c42ccf45f66b6f1f09452cc1cf58ce2eac759226dac48c12dad4d0395cfdd47","kind":"execute","parent":"c8644d6a71f4e57bb51f2c829c1998a7e181097df203149d938be768ab1e4499","payload_json":"{\"detail\":\"reached\"}","ts_ms":1781955603000}
+{"id":"028376f156552aba2c841f0d917edac18aeabd803143f7be7decfd171637f612","kind":"verify","parent":"1c42ccf45f66b6f1f09452cc1cf58ce2eac759226dac48c12dad4d0395cfdd47","payload_json":"{\"detail\":\"outcome reached\"}","ts_ms":1781955604000}
