@@ -1,0 +1,4 @@
+[
+  {"label": "authorized_policy", "trail": "testdata/policy/structured_legal.jsonl"},
+  {"label": "over_grant_policy", "trail": "testdata/policy/structured_illegal.jsonl"}
+]

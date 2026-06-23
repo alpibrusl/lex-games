@@ -112,24 +112,38 @@ will depend on this package instead of vendoring `lex_games.lex`.)
 [lex-robot](https://github.com/alpibrusl/lex-robot) task runs as a supervised
 guest (lex-os#47, *robot-in-box*) and emits a hash-chained lex-trail of its
 Perceive→Plan→Execute→Verify loop plus any supervisor `killed` event. That trail
-*is* a submission: the verifier re-derives every line's content id, checks the
-chain links head-to-tail, and folds the recorded outcomes into an authoritative
-score (goal reached · grant refusals · budget kills · actuation count). So a
-robot run becomes a **cheat-resistant, replay-verifiable benchmark** — same
-referee guarantee as the turn games.
+*is* a submission. The verifier re-derives every line's content id, checks the
+chain links head-to-tail, **re-derives that every successful actuation stayed
+inside its recorded grant**, and folds the outcomes into an authoritative score
+(goal reached · grant refusals · budget kills · actuation count). So a robot run
+becomes a **cheat-resistant, replay-verifiable benchmark** — same referee
+guarantee as the turn games.
 
 ```bash
 # export a recorded run (sqlite lex-trail → JSONL), then verify it:
 lex run --allow-effects io src/arena/verify.lex verify '"robot_task"' '"testdata/robot_task-sample.jsonl"'
-# → {"verified":true,"intact":true,"linked":true,"goal_met":true,...,"score":148}
+# → {"verified":true,"intact":true,"linked":true,"legal":true,"legal_checked":1,"goal_met":true,...,"score":148}
 ```
 
-Depth note: today's lex-robot payloads carry a `detail` summary, so the verifier
-checks tamper-integrity + chain linkage at full strength and scores from
-outcomes. Re-deriving *grant legality* (that each move's `(skill, args)` sat
-inside the granted workspace/force) needs lex-robot to record the structured
-lex-os `SkillOutcome` in the payload — the natural next step; the verdict shape
-already leaves room for it.
+### Authority is re-derived, not trusted
+
+When a run records the **structured lex-os `SkillOutcome`** — the actuation plus
+the grant it ran under — the verifier re-checks it: a `move_to` must land inside
+the granted workspace box, a `grasp` must stay under the grip-force cap.
+A trail that *claims* `reached` on an out-of-grant move is an **unauthorized
+success**: it is `intact`, `linked`, and `goal_met`, yet `legal:false` →
+`verified:false`. The leaderboard disqualifies it even when its raw score ties
+the honest winner. `legal_checked` reports how many actuations carried a grant we
+could re-check (a legacy `detail`-only run verifies on integrity + linkage as
+before, with `legal_checked:0`).
+
+Wire format is **integer milli-units** (mm for position, mN for force), so the
+grant caps should be **ISO/TS 15066-derived**: `max_grip` ≤ `140000` (140 N,
+hands/fingers quasi-static), `max_force` ≤ `280000` (280 N transient). Then
+*verified* means *every actuation stayed within standard biomechanical limits,
+provable from the trail*. (Caveat: 15066 limits are ultimately about pressure =
+force ÷ contact area, which the grant doesn't model — the force caps are a sound,
+conservative proxy.)
 
 ## Games as a safe RL/eval harness
 
