@@ -14,9 +14,10 @@
 import "std.io"  as io
 import "std.str" as str
 
-import "./trail_file"     as tf
-import "../games/bazaar"   as bazaar
-import "../games/template" as template
+import "./trail_file"        as tf
+import "../games/bazaar"     as bazaar
+import "../games/template"   as template
+import "../games/robot_task" as robot_task
 
 # Register a new game here: add an `if game == "<name>"` branch that reads the
 # trail, calls your game's verdict/verdict_json, and returns 0 (verified) or 1.
@@ -35,9 +36,14 @@ fn verify(game :: Str, trail_path :: Str) -> [io] Int {
         let _ := io.print(template.verdict_json(v))
         if v.verified { 0 } else { 1 }
       } else {
+      if game == "robot_task" {
+        let v := robot_task.verdict(lines)
+        let _ := io.print(robot_task.verdict_json(v))
+        if v.verified { 0 } else { 1 }
+      } else {
         let _ := io.print(str.concat("{\"verified\":false,\"error\":\"unknown game: ", str.concat(game, "\"}")))
         1
-      }}
+      }}}
     },
   }
 }

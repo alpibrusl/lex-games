@@ -30,7 +30,7 @@ jobs:
       - name: Type-check
         run: |
           set -euo pipefail
-          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/arena/verify.lex src/arena/export.lex; do
+          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/robot_task.lex src/arena/verify.lex src/arena/export.lex; do
             echo "== $f =="; lex check "$f"
           done
 
@@ -45,6 +45,16 @@ jobs:
           bad="$(lex run --allow-effects io src/arena/verify.lex verify '"bazaar"' '"/tmp/bad.jsonl"' || true)"
           echo "$bad"
           echo "$bad" | grep -q '"verified":false' || { echo "FAIL: tampered trail should be rejected"; exit 1; }
+
+          # robot_task: a lex-robot run trail — honest verifies + scores, tamper breaks the hash chain
+          rout="$(lex run --allow-effects io src/arena/verify.lex verify '"robot_task"' '"testdata/robot_task-sample.jsonl"')"
+          echo "$rout"
+          echo "$rout" | grep -q '"verified":true' || { echo "FAIL: robot sample should verify"; exit 1; }
+          echo "$rout" | grep -q '"goal_met":true' || { echo "FAIL: robot sample should reach goal"; exit 1; }
+          sed 's/reached/reach3d/' testdata/robot_task-sample.jsonl > /tmp/bad_robot.jsonl
+          rbad="$(lex run --allow-effects io src/arena/verify.lex verify '"robot_task"' '"/tmp/bad_robot.jsonl"' || true)"
+          echo "$rbad"
+          echo "$rbad" | grep -q '"verified":false' || { echo "FAIL: tampered robot trail should be rejected"; exit 1; }
           echo "ALL GREEN"
 
       - name: ACLI surface (introspect is valid JSON; launcher emits clean verdict)

@@ -79,6 +79,7 @@ the 0/1 verified/rejected signal is the process exit code.
 src/
   lex_games.lex          the framework: gate / match-bound tokens / record / verify_log / all_events
   games/bazaar.lex       Bazaar Draft rules + replay (the deterministic referee)
+  games/robot_task.lex   Robot Task verifier — folds a lex-robot run trail → scored verdict
   games/template.lex     TEMPLATE — copy this to start a new game's verifier
   arena/trail_file.lex   portable JSONL trail format (self-verifying; matches the finance arena)
   arena/export.lex       sqlite lex-trail → JSONL (client side, after a local match)
@@ -104,7 +105,33 @@ Duel, Co-op Infiltration, Strategy Football, and the Robot Arena bridge. This re
 is the framework + the verifier those produce trails for. (Follow-up: lex-robot
 will depend on this package instead of vendoring `lex_games.lex`.)
 
+## Verifiable robot benchmarks
+
+`games/robot_task.lex` extends the "trail, not score" model to **robots**. A
+[lex-robot](https://github.com/alpibrusl/lex-robot) task runs as a supervised
+guest (lex-os#47, *robot-in-box*) and emits a hash-chained lex-trail of its
+Perceive→Plan→Execute→Verify loop plus any supervisor `killed` event. That trail
+*is* a submission: the verifier re-derives every line's content id, checks the
+chain links head-to-tail, and folds the recorded outcomes into an authoritative
+score (goal reached · grant refusals · budget kills · actuation count). So a
+robot run becomes a **cheat-resistant, replay-verifiable benchmark** — same
+referee guarantee as the turn games.
+
+```bash
+# export a recorded run (sqlite lex-trail → JSONL), then verify it:
+lex run --allow-effects io src/arena/verify.lex verify '"robot_task"' '"testdata/robot_task-sample.jsonl"'
+# → {"verified":true,"intact":true,"linked":true,"goal_met":true,...,"score":148}
+```
+
+Depth note: today's lex-robot payloads carry a `detail` summary, so the verifier
+checks tamper-integrity + chain linkage at full strength and scores from
+outcomes. Re-deriving *grant legality* (that each move's `(skill, args)` sat
+inside the granted workspace/force) needs lex-robot to record the structured
+lex-os `SkillOutcome` in the payload — the natural next step; the verdict shape
+already leaves room for it.
+
 ## Status
 
-Verifier + Bazaar Draft rules, verified end-to-end. More games' replay rules and a
-`verify.lex` dispatch per game land as each is wired into the hosted arena.
+Verifier + Bazaar Draft + Robot Task, verified end-to-end. More games' replay
+rules and a `verify.lex` dispatch per game land as each is wired into the hosted
+arena.
