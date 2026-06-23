@@ -1,0 +1,7 @@
+[
+  {"label": "diffusion_pusht", "trail": "testdata/policy/reach_fast.jsonl"},
+  {"label": "bc_retry", "trail": "testdata/policy/reach_slow.jsonl"},
+  {"label": "random_policy", "trail": "testdata/policy/timeout.jsonl"},
+  {"label": "reckless_policy", "trail": "testdata/policy/reckless_denied.jsonl"},
+  {"label": "overbudget_policy", "trail": "testdata/policy/overbudget_killed.jsonl"}
+]

@@ -30,7 +30,7 @@ jobs:
       - name: Type-check
         run: |
           set -euo pipefail
-          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/robot_task.lex src/arena/verify.lex src/arena/export.lex; do
+          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/robot_task.lex src/arena/verify.lex src/arena/leaderboard.lex src/arena/export.lex; do
             echo "== $f =="; lex check "$f"
           done
 
@@ -57,11 +57,27 @@ jobs:
           echo "$rbad" | grep -q '"verified":false' || { echo "FAIL: tampered robot trail should be rejected"; exit 1; }
           echo "ALL GREEN"
 
+      - name: Policy-eval leaderboard (rank rollouts; cheat trails disqualified)
+        run: |
+          set -euo pipefail
+          # honest field of 5 policies → diffusion_pusht wins, ranked by recomputed score;
+          # a goal-reaching policy must outrank one that hit a guardrail (denied/killed).
+          # (cli/games strips lex run's trailing exit-code line → one clean JSON object.)
+          cli/games leaderboard testdata/policy/leaderboard.json --output json | tee /tmp/lb.json
+          python3 -c "import json; d=json.load(open('/tmp/lb.json')); o=[r['label'] for r in d['ranked']]; s={r['label']:r['score'] for r in d['ranked']}; assert d['winner']=='diffusion_pusht',d['winner']; assert o[:2]==['diffusion_pusht','bc_retry'],o; assert all(r['verified'] for r in d['ranked']); assert s['diffusion_pusht']>s['reckless_policy'],s; print('leaderboard ok:',o)"
+          # cheat-resistance: a tampered trail is disqualified, never trusted
+          sed 's/0.5,0.5,0.2/9.9,9.9,9.9/' testdata/policy/reach_fast.jsonl > testdata/policy/_cheater.jsonl
+          printf '[{"label":"honest","trail":"testdata/policy/reach_fast.jsonl"},{"label":"cheater","trail":"testdata/policy/_cheater.jsonl"}]' > /tmp/cheat.json
+          cli/games leaderboard /tmp/cheat.json --output json | tee /tmp/cb.json
+          python3 -c "import json; d=json.load(open('/tmp/cb.json')); c=[r for r in d['ranked'] if r['label']=='cheater'][0]; assert d['winner']=='honest',d['winner']; assert c['verified'] is False,'tampered trail must be disqualified'; print('cheat-resistance ok')"
+          rm -f testdata/policy/_cheater.jsonl
+          echo "LEADERBOARD GREEN"
+
       - name: ACLI surface (introspect is valid JSON; launcher emits clean verdict)
         run: |
           set -euo pipefail
           # introspect must be valid JSON and list verify/export
-          python3 -c "import json,sys; d=json.load(sys.stdin); names=[s['name'] for s in d['subcommands']]; assert names==['verify','export'], names; print('introspect ok:', names)" < <(cli/games introspect --output json)
+          python3 -c "import json,sys; d=json.load(sys.stdin); names=[s['name'] for s in d['subcommands']]; assert names==['verify','export','leaderboard'], names; print('introspect ok:', names)" < <(cli/games introspect --output json)
           # the launcher strips lex run's trailing exit-code line → stdout is one JSON object (what acli-mcp parses)
           v="$(cli/games verify bazaar testdata/bazaar-sample.jsonl --output json)"
           echo "$v" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['verified'] is True; print('launcher verdict ok')"

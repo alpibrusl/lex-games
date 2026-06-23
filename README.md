@@ -84,6 +84,7 @@ src/
   arena/trail_file.lex   portable JSONL trail format (self-verifying; matches the finance arena)
   arena/export.lex       sqlite lex-trail → JSONL (client side, after a local match)
   arena/verify.lex       JSONL trail → verdict (server side: integrity + replay + score)
+  arena/leaderboard.lex  many robot-policy run trails → ranked, cheat-resistant benchmark
 cli/games                thin launcher
 docs/ADDING_A_GAME.md    how to add your own game (the game contract + steps)
 testdata/                a real sample trail (CI verifies it)
@@ -130,8 +131,30 @@ inside the granted workspace/force) needs lex-robot to record the structured
 lex-os `SkillOutcome` in the payload — the natural next step; the verdict shape
 already leaves room for it.
 
+## Games as a safe RL/eval harness
+
+`arena/leaderboard.lex` turns the robot referee into a **policy benchmark**. Each
+learned policy runs once under a grant + budget (the lex-os box is the safety
+envelope, so running an *untrusted* policy is safe) and its rollout trail is a
+submission. The leaderboard ranks a whole field by their **recomputed** score —
+never a number the client reported — so the benchmark is cheat-resistant and
+auditable, and a policy that hits a guardrail (grant refusal / budget kill) ranks
+*below* one that fails safely. A tampered or unreadable trail is disqualified to
+the bottom, never trusted.
+
+```bash
+# rank a field of policies from a manifest (JSON array of {label, trail}):
+cli/games leaderboard testdata/policy/leaderboard.json
+# → {"game":"robot_task","winner":"diffusion_pusht","ranked":[
+#      {"rank":1,"label":"diffusion_pusht","verified":true,"goal_met":true,"score":148,...},
+#      {"rank":2,"label":"bc_retry",...,"score":144}, ... reckless_policy last ]}
+```
+
+The fixtures in `testdata/policy/` are authentic lex-robot run trails (built with
+lex-trail's own `ev.make`); regenerate them with `tools/gen_policy_fixtures.lex`.
+
 ## Status
 
-Verifier + Bazaar Draft + Robot Task, verified end-to-end. More games' replay
-rules and a `verify.lex` dispatch per game land as each is wired into the hosted
-arena.
+Verifier + Bazaar Draft + Robot Task + policy-eval leaderboard, verified
+end-to-end (incl. against a real `lex-robot` run trail). More games' replay rules
+and a `verify.lex` dispatch per game land as each is wired into the hosted arena.

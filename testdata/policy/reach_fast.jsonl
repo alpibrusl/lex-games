@@ -1,0 +1,5 @@
+{"id":"12c0877a656ca543e09e18448b2d5a756462ed4562dc2a0728c11dacc12be231","kind":"task_started","parent":"","payload_json":"{}","ts_ms":1782200000000}
+{"id":"b6a5c8251862fb5cc8b93ac1ae9d52b356df504cf7a49f2af386b761a7ff62dd","kind":"perceive","parent":"12c0877a656ca543e09e18448b2d5a756462ed4562dc2a0728c11dacc12be231","payload_json":"{\"detail\":\"joints ok\"}","ts_ms":1782200000011}
+{"id":"3ec9a9e5ae3c37d5e313d81ce3bcde34ea00f16defc21071b5d6f3630ba36699","kind":"plan","parent":"b6a5c8251862fb5cc8b93ac1ae9d52b356df504cf7a49f2af386b761a7ff62dd","payload_json":"{\"detail\":\"target 0.5,0.5,0.2\"}","ts_ms":1782200000012}
+{"id":"f592e95dc3d87c7136059e5e26ec6257e370d736a2e757c20f6ff858776d94a4","kind":"execute","parent":"3ec9a9e5ae3c37d5e313d81ce3bcde34ea00f16defc21071b5d6f3630ba36699","payload_json":"{\"detail\":\"reached\"}","ts_ms":1782200000013}
+{"id":"89582a70d78b79ed0eeb65045705ca264fd3679ff9760fc9f5199f86f79f742a","kind":"verify","parent":"f592e95dc3d87c7136059e5e26ec6257e370d736a2e757c20f6ff858776d94a4","payload_json":"{\"detail\":\"outcome reached\"}","ts_ms":1782200000014}

@@ -57,6 +57,10 @@ case "$cmd" in
     db="${1:?trail.db}"; out="${2:?out.jsonl}"
     run_lex --allow-effects fs_write,io,sql,time "$HERE/src/arena/export.lex" export "$(jq_str "$db")" "$(jq_str "$out")"
     ;;
+  leaderboard)
+    manifest="${1:?manifest.json}"
+    run_lex --allow-effects io "$HERE/src/arena/leaderboard.lex" run "$(jq_str "$manifest")"
+    ;;
   introspect)
     # ACLI command tree (lex SDK shape: subcommands/flags/positionals). acli-mcp
     # walks this to register one MCP tool per leaf command.
@@ -64,7 +68,7 @@ case "$cmd" in
 {
   "name": "games",
   "version": "$VERSION",
-  "description": "Verify and export Lex arena game trails.",
+  "description": "Verify, export, and rank Lex arena game trails.",
   "flags": [],
   "subcommands": [
     {
@@ -86,6 +90,15 @@ case "$cmd" in
         { "name": "db", "description": "Path to the trail SQLite database.", "required": true },
         { "name": "out", "description": "Output JSONL file path.", "required": true }
       ]
+    },
+    {
+      "name": "leaderboard",
+      "description": "Rank many robot-policy run trails by their verified score (a safe RL/eval benchmark). Reads a manifest (JSON array of {label, trail}); prints a ranked JSON table. Tampered/unreadable trails are disqualified to the bottom.",
+      "idempotent": true,
+      "flags": [],
+      "positionals": [
+        { "name": "manifest", "description": "Path to the manifest JSON: an array of {\"label\":..,\"trail\":..} entries.", "required": true }
+      ]
     }
   ]
 }
@@ -100,6 +113,7 @@ games — verify and export Lex arena game trails
 
   games verify <game> <trail.jsonl>   replay a trail, recompute the score (JSON verdict)
   games export <trail.db> <out.jsonl> export a trail store to portable JSONL
+  games leaderboard <manifest.json>   rank many robot-policy run trails by verified score
   games introspect                    machine-readable command tree (JSON, for acli-mcp)
   games skill                         agentskills.io SKILL.md
 
