@@ -1,0 +1,4 @@
+[
+  {"label": "bc_retry", "trail": "testdata/policy/reach_slow.jsonl"},
+  {"label": "reckless_policy", "trail": "testdata/policy/reckless_denied.jsonl"}
+]

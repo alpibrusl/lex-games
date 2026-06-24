@@ -85,6 +85,9 @@ src/
   arena/export.lex       sqlite lex-trail → JSONL (client side, after a local match)
   arena/verify.lex       JSONL trail → verdict (server side: integrity + replay + score)
   arena/leaderboard.lex  many robot-policy run trails → ranked, cheat-resistant benchmark
+  arena/elo.lex          pure, deterministic ELO math (logistic expected-score + update)
+  arena/standings.lex    round-robin + ELO accumulation over a field (pure)
+  arena/season.lex       prior standings + a round manifest → new ELO standings (head-to-head, persists)
 cli/games                thin launcher
 docs/ADDING_A_GAME.md    how to add your own game (the game contract + steps)
 testdata/                a real sample trail (CI verifies it)
@@ -167,8 +170,30 @@ cli/games leaderboard testdata/policy/leaderboard.json
 The fixtures in `testdata/policy/` are authentic lex-robot run trails (built with
 lex-trail's own `ev.make`); regenerate them with `tools/gen_policy_fixtures.lex`.
 
+### ELO seasons (head-to-head, across rounds)
+
+A single leaderboard ranks *one* field by absolute score. `arena/season.lex`
+ranks the way agent arenas actually do — by **relative skill that accumulates**.
+Each round is a manifest; we recompute every trail's verified score, play a
+deterministic round-robin (the higher verified score wins each pairing), and
+update each policy's **ELO** (logistic expected-score, K=32, seed 1500 — all pure
+Lex, so the same image recomputes the same rating). Ratings persist across rounds
+via a standings file, so a policy that keeps beating *strong* fields climbs and
+one that only beat a weak field does not. Read-only by design: it prints the new
+standings, and persistence is just stdout redirection.
+
+```bash
+# round 1 starts a fresh season (missing standings → everyone seeds at 1500):
+cli/games season standings.json testdata/policy/leaderboard.json > next.json
+# round 2 chains the standings forward; policies that sit out carry unchanged:
+cli/games season next.json testdata/policy/season_round2.json > standings.json
+# → {"game":"robot_task","round_entries":2,"players":5,"standings":[
+#      {"rank":1,"label":"diffusion_pusht","rating":1531,"played":4,"wins":4,...}, ...]}
+```
+
 ## Status
 
-Verifier + Bazaar Draft + Robot Task + policy-eval leaderboard, verified
-end-to-end (incl. against a real `lex-robot` run trail). More games' replay rules
-and a `verify.lex` dispatch per game land as each is wired into the hosted arena.
+Verifier + Bazaar Draft + Robot Task + policy-eval leaderboard + ELO seasons,
+verified end-to-end (incl. against a real `lex-robot` run trail). More games'
+replay rules and a `verify.lex` dispatch per game land as each is wired into the
+hosted arena.
