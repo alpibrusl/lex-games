@@ -84,6 +84,7 @@ src/
   arena/trail_file.lex   portable JSONL trail format (self-verifying; matches the finance arena)
   arena/export.lex       sqlite lex-trail → JSONL (client side, after a local match)
   arena/verify.lex       JSONL trail → verdict (server side: integrity + replay + score)
+  arena/rank.lex         the canonical score-ranking rule (one source of truth, shared)
   arena/leaderboard.lex  many robot-policy run trails → ranked, cheat-resistant benchmark
   arena/elo.lex          pure, deterministic ELO math (logistic expected-score + update)
   arena/standings.lex    round-robin + ELO accumulation over a field (pure)
