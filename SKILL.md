@@ -1,6 +1,6 @@
 ---
 name: games
-description: "Invoke the `games` CLI to verify and export Lex arena game trails. Commands: verify, export. Use when you need to recompute the authoritative score of a recorded game from its trail, or export a trail store to portable JSONL."
+description: "Invoke the `games` CLI to verify, export, and rank Lex arena game trails. Commands: verify, export, leaderboard, season. Use when you need to recompute the authoritative score of a recorded game from its trail, rank a field of policy rollouts, or update an ELO season — all from trails, never trusting a client-reported score."
 when_to_use: "When you have a recorded game trail (JSONL) and need a trustworthy verdict — the score is recomputed server-side by replaying the trail through the rules, never trusted from a client."
 ---
 
@@ -18,6 +18,8 @@ faked. Replay is rules-only (no model inference) — cheap and reproducible.
 
 - `games verify <game> <trail.jsonl>` — replay a trail and recompute the score. (idempotent)
 - `games export <trail.db> <out.jsonl>` — export a trail store to portable JSONL.
+- `games leaderboard <manifest.json>` — rank a field of robot-policy run trails by verified score. (idempotent)
+- `games season <standings.json> <round.json>` — update head-to-head ELO ratings over a round; prints the new standings. (idempotent)
 
 ## `games verify`
 
@@ -61,6 +63,42 @@ self-verifying JSONL (one event per line; each line's id is its content hash).
 games export /tmp/lex-shop-123.db ./trail.jsonl
 ```
 
+## `games leaderboard`
+
+Rank a whole field of robot-policy run trails by their **verified** score (each
+trail is replayed through the rules; a tampered or over-grant trail is
+disqualified to the bottom, never trusted). Prints one ranked JSON object.
+
+### Arguments
+
+- `manifest` (string, required) — path to a JSON array of `{ "label":.., "trail":.. }` entries.
+
+### Example
+
+```bash
+games leaderboard ./testdata/policy/leaderboard.json
+```
+
+## `games season`
+
+Like `leaderboard`, but ratings **persist across rounds**: each round plays a
+deterministic round-robin (the higher verified score wins each pairing) and
+updates every policy's ELO. Reads the prior standings + this round's manifest and
+prints the new standings — redirect stdout to persist, so a season is a chain.
+A missing standings file starts everyone fresh at 1500.
+
+### Arguments
+
+- `standings` (string, required) — path to the prior standings JSON (missing/empty = fresh season).
+- `manifest` (string, required) — path to this round's manifest (same shape as `leaderboard`).
+
+### Example
+
+```bash
+games season standings.json round1.json > next.json   # round 1 (fresh)
+games season next.json     round2.json > standings.json
+```
+
 ## Output format
 
 `verify` and `export` emit JSON to stdout. `verify`'s object is the game's
@@ -84,5 +122,5 @@ verdict; all games include at least `verified` (bool).
 Run this CLI as MCP tools via [`acli-mcp`](https://github.com/alpibrusl/acli-mcp):
 
 ```bash
-ACLI_BIN=games python -m acli_mcp   # exposes verify / export as MCP tools
+ACLI_BIN=games python -m acli_mcp   # exposes verify / export / leaderboard / season as MCP tools
 ```

@@ -25,6 +25,7 @@ import "std.json" as json
 
 import "./trail_file"        as tf
 import "../games/robot_task" as rt
+import "./rank"              as rank
 
 # One manifest row: a human label for the policy + the path to its run trail.
 type ManEntry = { label :: Str, trail :: Str }
@@ -53,9 +54,9 @@ fn score_one(e :: ManEntry) -> [io] Row {
   }
 }
 
-# Sort key (ascending): verified rows first, highest score first; everything
-# disqualified is pushed to the bottom.
-fn rank_key(r :: Row) -> Int { if r.verified { 0 - r.score } else { 1000000 } }
+# Sort key (ascending): the canonical arena ordering — verified rows by highest
+# score first, everything disqualified pushed to the bottom (shared via rank).
+fn rank_key(r :: Row) -> Int { rank.key(r.verified, r.score) }
 
 fn b(x :: Bool) -> Str { if x { "true" } else { "false" } }
 

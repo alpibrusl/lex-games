@@ -61,6 +61,10 @@ case "$cmd" in
     manifest="${1:?manifest.json}"
     run_lex --allow-effects io "$HERE/src/arena/leaderboard.lex" run "$(jq_str "$manifest")"
     ;;
+  season)
+    standings="${1:?standings.json}"; manifest="${2:?round-manifest.json}"
+    run_lex --allow-effects io "$HERE/src/arena/season.lex" run "$(jq_str "$standings")" "$(jq_str "$manifest")"
+    ;;
   introspect)
     # ACLI command tree (lex SDK shape: subcommands/flags/positionals). acli-mcp
     # walks this to register one MCP tool per leaf command.
@@ -99,6 +103,16 @@ case "$cmd" in
       "positionals": [
         { "name": "manifest", "description": "Path to the manifest JSON: an array of {\"label\":..,\"trail\":..} entries.", "required": true }
       ]
+    },
+    {
+      "name": "season",
+      "description": "Update an ELO season: replay a round of run trails, play a deterministic round-robin scored by verified score, and carry ratings forward. Reads prior standings + a round manifest; prints the new standings JSON (redirect stdout to persist). A missing standings file starts a fresh season at 1500.",
+      "idempotent": true,
+      "flags": [],
+      "positionals": [
+        { "name": "standings", "description": "Path to the prior standings JSON (missing/empty = fresh season).", "required": true },
+        { "name": "manifest", "description": "Path to this round's manifest JSON: an array of {\"label\":..,\"trail\":..} entries.", "required": true }
+      ]
     }
   ]
 }
@@ -114,6 +128,7 @@ games — verify and export Lex arena game trails
   games verify <game> <trail.jsonl>   replay a trail, recompute the score (JSON verdict)
   games export <trail.db> <out.jsonl> export a trail store to portable JSONL
   games leaderboard <manifest.json>   rank many robot-policy run trails by verified score
+  games season <standings.json> <round.json>  update ELO ratings over a round (prints new standings)
   games introspect                    machine-readable command tree (JSON, for acli-mcp)
   games skill                         agentskills.io SKILL.md
 

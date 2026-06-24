@@ -30,7 +30,7 @@ jobs:
       - name: Type-check
         run: |
           set -euo pipefail
-          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/robot_task.lex src/arena/verify.lex src/arena/leaderboard.lex src/arena/export.lex tools/gen_robot_structured.lex; do
+          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/robot_task.lex src/arena/verify.lex src/arena/rank.lex src/arena/leaderboard.lex src/arena/elo.lex src/arena/standings.lex src/arena/season.lex src/arena/export.lex tools/gen_robot_structured.lex; do
             echo "== $f =="; lex check "$f"
           done
 
@@ -91,11 +91,25 @@ jobs:
           python3 -c "import json; d=json.load(open('/tmp/au.json')); og=[r for r in d['ranked'] if r['label']=='over_grant_policy'][0]; assert d['winner']=='authorized_policy',d['winner']; assert og['verified'] is False,'over-grant policy must be disqualified'; print('authority-resistance ok')"
           echo "LEADERBOARD GREEN"
 
+      - name: ELO season (head-to-head ratings persist across rounds)
+        run: |
+          set -euo pipefail
+          # Round 1: the same honest field of 5. Round-robin scored by verified score →
+          # the top-scoring policy (diffusion_pusht) earns the top rating; everyone seeds at 1500.
+          cli/games season /tmp/no-such-standings.json testdata/policy/leaderboard.json --output json | tee /tmp/s1.json
+          python3 -c "import json; d=json.load(open('/tmp/s1.json')); st=d['standings']; assert d['players']==5,d; assert st[0]['label']=='diffusion_pusht',st[0]; rs=[r['rating'] for r in st]; assert rs==sorted(rs,reverse=True),rs; assert st[0]['rating']>1500 and st[-1]['rating']<1500,rs; print('season round1 ok:',[(r['label'],r['rating']) for r in st])"
+          # Round 2: a 2-policy rematch (bc_retry beats reckless_policy on verified score).
+          # Chain the standings; the 3 policies that sat out must carry forward UNCHANGED,
+          # and bc_retry's rating must rise from its round-1 value.
+          cli/games season /tmp/s1.json testdata/policy/season_round2.json --output json | tee /tmp/s2.json
+          python3 -c "import json; a={r['label']:r for r in json.load(open('/tmp/s1.json'))['standings']}; b={r['label']:r for r in json.load(open('/tmp/s2.json'))['standings']}; d=json.load(open('/tmp/s2.json')); assert d['players']==5,d; assert b['diffusion_pusht']['rating']==a['diffusion_pusht']['rating'],'sitting-out player must carry forward unchanged'; assert b['bc_retry']['rating']>a['bc_retry']['rating'],'round-2 winner must gain rating'; assert b['reckless_policy']['rating']<a['reckless_policy']['rating'],'round-2 loser must lose rating'; assert b['bc_retry']['played']==a['bc_retry']['played']+1; print('season round2 ok: carry-forward + rating movement')"
+          echo "SEASON GREEN"
+
       - name: ACLI surface (introspect is valid JSON; launcher emits clean verdict)
         run: |
           set -euo pipefail
           # introspect must be valid JSON and list verify/export
-          python3 -c "import json,sys; d=json.load(sys.stdin); names=[s['name'] for s in d['subcommands']]; assert names==['verify','export','leaderboard'], names; print('introspect ok:', names)" < <(cli/games introspect --output json)
+          python3 -c "import json,sys; d=json.load(sys.stdin); names=[s['name'] for s in d['subcommands']]; assert names==['verify','export','leaderboard','season'], names; print('introspect ok:', names)" < <(cli/games introspect --output json)
           # the launcher strips lex run's trailing exit-code line → stdout is one JSON object (what acli-mcp parses)
           v="$(cli/games verify bazaar testdata/bazaar-sample.jsonl --output json)"
           echo "$v" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['verified'] is True; print('launcher verdict ok')"
