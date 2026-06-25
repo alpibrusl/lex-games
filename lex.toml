@@ -1,7 +1,7 @@
 [package]
 name    = "lex-games"
 version = "0.1.0"
-lex     = "0.9.11"
+lex     = "0.10.0"
 license = "EUPL-1.2"
 description = "Capability-gated, verifiable turn games + the arena verifier (replay a trail -> score)."
 
