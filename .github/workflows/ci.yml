@@ -30,7 +30,7 @@ jobs:
       - name: Type-check
         run: |
           set -euo pipefail
-          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/nbazaar.lex src/games/gbazaar.lex src/games/robot_task.lex src/arena/verify.lex src/arena/rank.lex src/arena/leaderboard.lex src/arena/elo.lex src/arena/standings.lex src/arena/season.lex src/arena/nbazaar_season.lex src/arena/export.lex tools/gen_robot_structured.lex tools/gen_nbazaar_sample.lex tools/gen_gbazaar_forged.lex; do
+          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/nbazaar.lex src/games/gbazaar.lex src/games/robot_task.lex src/arena/verify.lex src/arena/rank.lex src/arena/leaderboard.lex src/arena/elo.lex src/arena/standings.lex src/arena/season.lex src/arena/nbazaar_season.lex src/arena/bazaar_season.lex src/arena/export.lex tools/gen_robot_structured.lex tools/gen_nbazaar_sample.lex tools/gen_gbazaar_forged.lex tools/gen_gbazaar_session2.lex; do
             echo "== $f =="; lex check "$f"
           done
 
@@ -130,6 +130,16 @@ jobs:
           echo "$tp" | grep -q '"intact":false' || { echo "FAIL: tampered trail must break the hash chain"; exit 1; }
           echo "$tp" | grep -q '"verified":false' || { echo "FAIL: tampered trail must be rejected"; exit 1; }
           echo "GBAZAAR VERIFY GREEN"
+
+      - name: Governed Bazaar — seller reputation across sessions (forged session is void)
+        run: |
+          set -euo pipefail
+          # regenerate the multi-session field deterministically
+          lex run --allow-effects io tools/gen_gbazaar_session2.lex gen '"testdata/gbazaar/session2.jsonl"'
+          lex run --allow-effects io tools/gen_gbazaar_forged.lex   gen '"testdata/gbazaar/forged.jsonl"'
+          lex run --allow-effects io src/arena/bazaar_season.lex run '"testdata/gbazaar/reputation.json"' | grep '^{' | tee /tmp/rep.json
+          python3 -c "import json; d=json.load(open('/tmp/rep.json')); s={x['merchant']:x for x in d['sellers']}; assert d['sessions']==3 and d['verified']==2 and d['void']==1,d; assert d['sellers'][0]['merchant']=='textile.bazaar',d['sellers'][0]; assert s['textile.bazaar']['revenue']==4800 and s['textile.bazaar']['deals']==2 and s['textile.bazaar']['sessions']==2,s['textile.bazaar']; rv=[x['revenue'] for x in d['sellers']]; assert rv==sorted(rv,reverse=True),rv; assert 'rogue.seller' not in s,'a forged/void session must not pad any reputation'; print('bazaar reputation ok:',[(x['merchant'],x['revenue']) for x in d['sellers']])"
+          echo "BAZAAR REPUTATION GREEN"
 
       - name: Policy-eval leaderboard (rank rollouts; cheat trails disqualified)
         run: |

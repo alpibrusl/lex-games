@@ -47,14 +47,14 @@ fn read_budget(lines :: List[tf.Line]) -> (Bool, Budget) {
   })
 }
 
-# Per-seller revenue (find-or-add fold accumulator).
-type Rev = { merchant :: Str, revenue :: Int }
+# Per-seller revenue + deal count (find-or-add fold accumulator).
+type Rev = { merchant :: Str, revenue :: Int, deals :: Int }
 fn add_rev(rs :: List[Rev], merchant :: Str, amount :: Int) -> List[Rev] {
   let hit := list.fold(rs, false, fn (a :: Bool, r :: Rev) -> Bool { a or r.merchant == merchant })
   if hit {
-    list.map(rs, fn (r :: Rev) -> Rev { if r.merchant == merchant { { merchant: r.merchant, revenue: r.revenue + amount } } else { r } })
+    list.map(rs, fn (r :: Rev) -> Rev { if r.merchant == merchant { { merchant: r.merchant, revenue: r.revenue + amount, deals: r.deals + 1 } } else { r } })
   } else {
-    list.concat(rs, [{ merchant: merchant, revenue: amount }])
+    list.concat(rs, [{ merchant: merchant, revenue: amount, deals: 1 }])
   }
 }
 
@@ -105,7 +105,7 @@ fn top_seller(v :: Verdict) -> Str {
 
 fn revs_json(revs :: List[Rev]) -> Str {
   str.join(["[", str.join(list.map(revs, fn (r :: Rev) -> Str {
-    str.join(["{\"merchant\":\"", r.merchant, "\",\"revenue\":", int.to_str(r.revenue), "}"], "")
+    str.join(["{\"merchant\":\"", r.merchant, "\",\"revenue\":", int.to_str(r.revenue), ",\"deals\":", int.to_str(r.deals), "}"], "")
   }), ","), "]"], "")
 }
 
