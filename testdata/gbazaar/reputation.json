@@ -1,0 +1,5 @@
+[
+  { "trail": "testdata/gbazaar/session1.jsonl" },
+  { "trail": "testdata/gbazaar/session2.jsonl" },
+  { "trail": "testdata/gbazaar/forged.jsonl" }
+]
