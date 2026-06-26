@@ -78,7 +78,8 @@ the 0/1 verified/rejected signal is the process exit code.
 ```
 src/
   lex_games.lex          the framework: gate / match-bound tokens / record / verify_log / all_events
-  games/bazaar.lex       Bazaar Draft rules + replay (the deterministic referee)
+  games/bazaar.lex       Bazaar Draft rules + replay (2-player deterministic referee)
+  games/nbazaar.lex      N-player Bazaar — replay an N-seat match trail → per-seat scores
   games/robot_task.lex   Robot Task verifier — folds a lex-robot run trail → scored verdict
   games/template.lex     TEMPLATE — copy this to start a new game's verifier
   arena/trail_file.lex   portable JSONL trail format (self-verifying; matches the finance arena)
@@ -89,6 +90,7 @@ src/
   arena/elo.lex          pure, deterministic ELO math (logistic expected-score + update)
   arena/standings.lex    round-robin + ELO accumulation over a field (pure)
   arena/season.lex       prior standings + a round manifest → new ELO standings (head-to-head, persists)
+  arena/nbazaar_season.lex  a manifest of N-player matches → ELO ratings per model (one match = one round)
 cli/games                thin launcher
 docs/ADDING_A_GAME.md    how to add your own game (the game contract + steps)
 testdata/                a real sample trail (CI verifies it)
@@ -109,6 +111,32 @@ The interactive clients + the play server live in
 Duel, Co-op Infiltration, Strategy Football, and the Robot Arena bridge. This repo
 is the framework + the verifier those produce trails for. (Follow-up: lex-robot
 will depend on this package instead of vendoring `lex_games.lex`.)
+
+## N-player Bazaar — a model-vs-model arena
+
+`games/nbazaar.lex` generalizes the head-to-head Bazaar Draft to **N seats**: N
+agents take turns drafting from a shared pool under a per-seat budget, recorded
+as one hash-chained trail. The live referee + LLM seats live in
+[lex-robot](https://github.com/alpibrusl/lex-robot)
+(`examples/nplayer_bazaar*.lex`) — point one open-weights model at each seat and
+they play a free-for-all. The match trail is the submission; the verifier
+replays it, enforcing turn order + affordability + ownership, and recomputes
+every seat's score (never trusted from a client).
+
+`arena/nbazaar_season.lex` turns a manifest of matches into an ELO leaderboard.
+One match is itself a round-robin among the models at its table, so ratings
+accumulate across matches the way an agent arena ranks models over many games:
+
+```bash
+# a 3-model match (glm-5.1 34, deepseek-v4-flash 32, kimi-k2.6 28) → ELO round
+lex run --allow-effects io src/arena/nbazaar_season.lex run '"none.json"' '"testdata/nbazaar/season_r1.json"' | grep '^{' > s1.json
+# chain a glm-vs-kimi rematch that kimi wins; deepseek sits out → carries forward
+lex run --allow-effects io src/arena/nbazaar_season.lex run '"s1.json"' '"testdata/nbazaar/season_r2.json"'
+# → glm 1512 (won r1, lost the rematch) · deepseek 1501 (unchanged) · kimi 1487 (clawed back)
+```
+
+A tampered match trail breaks its content ids → every seat in it is disqualified,
+so a fabricated trail can never manufacture a win or a rating gain.
 
 ## Verifiable robot benchmarks
 

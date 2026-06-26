@@ -30,7 +30,7 @@ jobs:
       - name: Type-check
         run: |
           set -euo pipefail
-          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/robot_task.lex src/arena/verify.lex src/arena/rank.lex src/arena/leaderboard.lex src/arena/elo.lex src/arena/standings.lex src/arena/season.lex src/arena/export.lex tools/gen_robot_structured.lex; do
+          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/nbazaar.lex src/games/robot_task.lex src/arena/verify.lex src/arena/rank.lex src/arena/leaderboard.lex src/arena/elo.lex src/arena/standings.lex src/arena/season.lex src/arena/nbazaar_season.lex src/arena/export.lex tools/gen_robot_structured.lex tools/gen_nbazaar_sample.lex; do
             echo "== $f =="; lex check "$f"
           done
 
@@ -70,6 +70,39 @@ jobs:
           echo "$si" | grep -q '"legal":false' || { echo "FAIL: out-of-grant move must be illegal"; exit 1; }
           echo "$si" | grep -q '"verified":false' || { echo "FAIL: unauthorized success must not verify"; exit 1; }
           echo "ALL GREEN"
+
+      - name: N-player Bazaar — verify a multi-model match trail (honest → verified, tampered → rejected)
+        run: |
+          set -euo pipefail
+          # honest 3-seat match recomputes the per-seat scores from the recorded moves
+          out="$(lex run --allow-effects io src/arena/verify.lex verify '"nbazaar"' '"testdata/nbazaar/match1.jsonl"')"
+          echo "$out"
+          echo "$out" | grep -q '"verified":true' || { echo "FAIL: nbazaar sample should verify"; exit 1; }
+          echo "$out" | grep -q '"scores":\[34,28,32\]' || { echo "FAIL: scores must recompute to [34,28,32]"; exit 1; }
+          echo "$out" | grep -q '"winner":0' || { echo "FAIL: seat 0 must win"; exit 1; }
+          # tamper a move payload → its content id no longer recomputes → rejected
+          sed 's/\\"seat\\":0,\\"item\\":1/\\"seat\\":0,\\"item\\":3/' testdata/nbazaar/match1.jsonl > /tmp/nb_bad.jsonl
+          bad="$(lex run --allow-effects io src/arena/verify.lex verify '"nbazaar"' '"/tmp/nb_bad.jsonl"' || true)"
+          echo "$bad"
+          echo "$bad" | grep -q '"verified":false' || { echo "FAIL: tampered nbazaar trail must be rejected"; exit 1; }
+          echo "NBAZAAR VERIFY GREEN"
+
+      - name: N-player Bazaar — ELO season across matches (ratings move + carry forward)
+        run: |
+          set -euo pipefail
+          # Round 1: a 3-model match (glm 34, deepseek 32, kimi 28). Round-robin by
+          # recomputed score → glm tops, kimi sinks; everyone seeds at 1500.
+          lex run --allow-effects io src/arena/nbazaar_season.lex run '"/tmp/no-such.json"' '"testdata/nbazaar/season_r1.json"' | grep '^{' | tee /tmp/nb_s1.json
+          python3 -c "import json; d=json.load(open('/tmp/nb_s1.json')); st=d['standings']; assert d['players']==3,d; assert st[0]['label']=='glm-5.1',st[0]; rs=[r['rating'] for r in st]; assert rs==sorted(rs,reverse=True),rs; assert st[0]['rating']>1500 and st[-1]['rating']<1500,rs; assert st[-1]['label']=='kimi-k2.6',st; print('nbazaar season r1 ok:',[(r['label'],r['rating']) for r in st])"
+          # Round 2: a glm-vs-kimi rematch that kimi wins. Chain the standings: deepseek
+          # sat out → carries forward UNCHANGED; kimi's rating must rise from round 1.
+          lex run --allow-effects io src/arena/nbazaar_season.lex run '"/tmp/nb_s1.json"' '"testdata/nbazaar/season_r2.json"' | grep '^{' | tee /tmp/nb_s2.json
+          python3 -c "import json; a={r['label']:r for r in json.load(open('/tmp/nb_s1.json'))['standings']}; b={r['label']:r for r in json.load(open('/tmp/nb_s2.json'))['standings']}; d=json.load(open('/tmp/nb_s2.json')); assert d['players']==3,d; assert b['deepseek-v4-flash']['rating']==a['deepseek-v4-flash']['rating'],'sitting-out model must carry forward unchanged'; assert b['kimi-k2.6']['rating']>a['kimi-k2.6']['rating'],'round-2 winner must gain rating'; assert b['glm-5.1']['rating']<a['glm-5.1']['rating'],'round-2 loser must lose rating'; assert b['kimi-k2.6']['played']==a['kimi-k2.6']['played']+1; print('nbazaar season r2 ok: carry-forward + rating movement')"
+          # cheat-resistance: a tampered match trail disqualifies every seat (no false win, no rating gain)
+          printf '[{"trail":"/tmp/nb_bad.jsonl","seats":["cheater-A","honest-B","honest-C"]}]' > /tmp/nb_cheat.json
+          lex run --allow-effects io src/arena/nbazaar_season.lex run '"/tmp/none.json"' '"/tmp/nb_cheat.json"' | grep '^{' | tee /tmp/nb_cheat_out.json
+          python3 -c "import json; d=json.load(open('/tmp/nb_cheat_out.json')); rs=set(r['rating'] for r in d['standings']); assert rs=={1500},'a tampered match must not move any rating'; print('nbazaar cheat-resistance ok')"
+          echo "NBAZAAR SEASON GREEN"
 
       - name: Policy-eval leaderboard (rank rollouts; cheat trails disqualified)
         run: |
