@@ -1,0 +1,3 @@
+[
+  { "trail": "testdata/nbazaar/match1.jsonl", "seats": ["glm-5.1", "kimi-k2.6", "deepseek-v4-flash"] }
+]
