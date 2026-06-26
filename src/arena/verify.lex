@@ -17,6 +17,7 @@ import "std.str" as str
 import "./trail_file"        as tf
 import "../games/bazaar"     as bazaar
 import "../games/nbazaar"    as nbazaar
+import "../games/gbazaar"    as gbazaar
 import "../games/template"   as template
 import "../games/robot_task" as robot_task
 
@@ -47,9 +48,14 @@ fn verify(game :: Str, trail_path :: Str) -> [io] Int {
         let _ := io.print(nbazaar.verdict_json(v))
         if v.verified { 0 } else { 1 }
       } else {
+      if game == "gbazaar" {
+        let v := gbazaar.verdict(lines)
+        let _ := io.print(gbazaar.verdict_json(v))
+        if v.verified { 0 } else { 1 }
+      } else {
         let _ := io.print(str.concat("{\"verified\":false,\"error\":\"unknown game: ", str.concat(game, "\"}")))
         1
-      }}}}
+      }}}}}
     },
   }
 }

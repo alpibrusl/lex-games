@@ -30,7 +30,7 @@ jobs:
       - name: Type-check
         run: |
           set -euo pipefail
-          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/nbazaar.lex src/games/robot_task.lex src/arena/verify.lex src/arena/rank.lex src/arena/leaderboard.lex src/arena/elo.lex src/arena/standings.lex src/arena/season.lex src/arena/nbazaar_season.lex src/arena/export.lex tools/gen_robot_structured.lex tools/gen_nbazaar_sample.lex; do
+          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/nbazaar.lex src/games/gbazaar.lex src/games/robot_task.lex src/arena/verify.lex src/arena/rank.lex src/arena/leaderboard.lex src/arena/elo.lex src/arena/standings.lex src/arena/season.lex src/arena/nbazaar_season.lex src/arena/export.lex tools/gen_robot_structured.lex tools/gen_nbazaar_sample.lex tools/gen_gbazaar_forged.lex; do
             echo "== $f =="; lex check "$f"
           done
 
@@ -103,6 +103,33 @@ jobs:
           lex run --allow-effects io src/arena/nbazaar_season.lex run '"/tmp/none.json"' '"/tmp/nb_cheat.json"' | grep '^{' | tee /tmp/nb_cheat_out.json
           python3 -c "import json; d=json.load(open('/tmp/nb_cheat_out.json')); rs=set(r['rating'] for r in d['standings']); assert rs=={1500},'a tampered match must not move any rating'; print('nbazaar cheat-resistance ok')"
           echo "NBAZAAR SEASON GREEN"
+
+      - name: Governed Bazaar — verify a spend trail (honest → compliant, forged/tampered → rejected)
+        run: |
+          set -euo pipefail
+          # honest governed session: 3 settled within budget, 3 denied; recomputed compliant.
+          out="$(lex run --allow-effects io src/arena/verify.lex verify '"gbazaar"' '"testdata/gbazaar/session1.jsonl"')"
+          echo "$out"
+          echo "$out" | grep -q '"verified":true' || { echo "FAIL: honest session should verify"; exit 1; }
+          echo "$out" | grep -q '"compliant":true' || { echo "FAIL: honest session should be compliant"; exit 1; }
+          echo "$out" | grep -q '"settled":5600' || { echo "FAIL: settled total must recompute to 5600"; exit 1; }
+          echo "$out" | grep -q '"approved":3' || { echo "FAIL: 3 settlements expected"; exit 1; }
+          echo "$out" | grep -q '"denied":3' || { echo "FAIL: 3 denials expected (rogue + over-tx + over-cap)"; exit 1; }
+          # forged: hashes recompute (intact) but the settlement pays a non-allow-listed
+          # merchant — compliance is REPLAYED, so it's caught even with valid ids.
+          lex run --allow-effects io tools/gen_gbazaar_forged.lex gen '"/tmp/gb_forged.jsonl"'
+          fg="$(lex run --allow-effects io src/arena/verify.lex verify '"gbazaar"' '"/tmp/gb_forged.jsonl"' || true)"
+          echo "$fg"
+          echo "$fg" | grep -q '"intact":true' || { echo "FAIL: forged trail hashes should still be intact"; exit 1; }
+          echo "$fg" | grep -q '"rogue":true' || { echo "FAIL: rogue-merchant settlement must be flagged"; exit 1; }
+          echo "$fg" | grep -q '"verified":false' || { echo "FAIL: non-compliant trail must be rejected"; exit 1; }
+          # tamper a settled amount → its content id breaks → intact:false → rejected.
+          sed 's/\\"amount\\":2600/\\"amount\\":600/' testdata/gbazaar/session1.jsonl > /tmp/gb_tampered.jsonl
+          tp="$(lex run --allow-effects io src/arena/verify.lex verify '"gbazaar"' '"/tmp/gb_tampered.jsonl"' || true)"
+          echo "$tp"
+          echo "$tp" | grep -q '"intact":false' || { echo "FAIL: tampered trail must break the hash chain"; exit 1; }
+          echo "$tp" | grep -q '"verified":false' || { echo "FAIL: tampered trail must be rejected"; exit 1; }
+          echo "GBAZAAR VERIFY GREEN"
 
       - name: Policy-eval leaderboard (rank rollouts; cheat trails disqualified)
         run: |
