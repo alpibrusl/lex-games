@@ -81,6 +81,7 @@ src/
   games/bazaar.lex       Bazaar Draft rules + replay (2-player deterministic referee)
   games/nbazaar.lex      N-player Bazaar — replay an N-seat match trail → per-seat scores
   games/gbazaar.lex      Governed Bazaar — replay a spend trail → compliance verdict (no overspend / rogue merchant)
+  games/consent.lex      Consent — replay an a2p-style consent trail → compliance verdict (no leaked scope)
   games/robot_task.lex   Robot Task verifier — folds a lex-robot run trail → scored verdict
   games/template.lex     TEMPLATE — copy this to start a new game's verifier
   arena/trail_file.lex   portable JSONL trail format (self-verifying; matches the finance arena)

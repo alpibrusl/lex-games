@@ -30,7 +30,7 @@ jobs:
       - name: Type-check
         run: |
           set -euo pipefail
-          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/nbazaar.lex src/games/gbazaar.lex src/games/robot_task.lex src/arena/verify.lex src/arena/rank.lex src/arena/leaderboard.lex src/arena/elo.lex src/arena/standings.lex src/arena/season.lex src/arena/nbazaar_season.lex src/arena/bazaar_season.lex src/arena/export.lex tools/gen_robot_structured.lex tools/gen_nbazaar_sample.lex tools/gen_gbazaar_forged.lex tools/gen_gbazaar_session2.lex; do
+          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/nbazaar.lex src/games/gbazaar.lex src/games/consent.lex src/games/robot_task.lex src/arena/verify.lex src/arena/rank.lex src/arena/leaderboard.lex src/arena/elo.lex src/arena/standings.lex src/arena/season.lex src/arena/nbazaar_season.lex src/arena/bazaar_season.lex src/arena/export.lex tools/gen_robot_structured.lex tools/gen_nbazaar_sample.lex tools/gen_gbazaar_forged.lex tools/gen_gbazaar_session2.lex tools/gen_consent_forged.lex; do
             echo "== $f =="; lex check "$f"
           done
 
@@ -140,6 +140,32 @@ jobs:
           lex run --allow-effects io src/arena/bazaar_season.lex run '"testdata/gbazaar/reputation.json"' | grep '^{' | tee /tmp/rep.json
           python3 -c "import json; d=json.load(open('/tmp/rep.json')); s={x['merchant']:x for x in d['sellers']}; assert d['sessions']==3 and d['verified']==2 and d['void']==1,d; assert d['sellers'][0]['merchant']=='textile.bazaar',d['sellers'][0]; assert s['textile.bazaar']['revenue']==4800 and s['textile.bazaar']['deals']==2 and s['textile.bazaar']['sessions']==2,s['textile.bazaar']; rv=[x['revenue'] for x in d['sellers']]; assert rv==sorted(rv,reverse=True),rv; assert 'rogue.seller' not in s,'a forged/void session must not pad any reputation'; print('bazaar reputation ok:',[(x['merchant'],x['revenue']) for x in d['sellers']])"
           echo "BAZAAR REPUTATION GREEN"
+
+      - name: Consent — verify a consent trail (honest → compliant, forged/tampered → rejected)
+        run: |
+          set -euo pipefail
+          # honest a2p-style session: 2 grants within policy, 2 denials; recomputed compliant.
+          out="$(lex run --allow-effects io src/arena/verify.lex verify '"consent"' '"testdata/consent/session1.jsonl"')"
+          echo "$out"
+          echo "$out" | grep -q '"verified":true' || { echo "FAIL: honest consent session should verify"; exit 1; }
+          echo "$out" | grep -q '"grants":2' || { echo "FAIL: 2 grants expected"; exit 1; }
+          echo "$out" | grep -q '"denials":2' || { echo "FAIL: 2 denials expected"; exit 1; }
+          echo "$out" | grep -q '"leaked":\[\]' || { echo "FAIL: honest session leaks no scope"; exit 1; }
+          # forged: hashes recompute (intact) but a grant hands over a deny-listed scope —
+          # compliance is REPLAYED, so the leak is caught even with valid ids.
+          lex run --allow-effects io tools/gen_consent_forged.lex gen '"/tmp/consent_forged.jsonl"'
+          fg="$(lex run --allow-effects io src/arena/verify.lex verify '"consent"' '"/tmp/consent_forged.jsonl"' || true)"
+          echo "$fg"
+          echo "$fg" | grep -q '"intact":true' || { echo "FAIL: forged trail hashes should still be intact"; exit 1; }
+          echo "$fg" | grep -q '"leaked":\["health"\]' || { echo "FAIL: the leaked scope must be flagged"; exit 1; }
+          echo "$fg" | grep -q '"verified":false' || { echo "FAIL: a leaked-scope grant must be rejected"; exit 1; }
+          # tamper a granted scope → its content id breaks → intact:false → rejected.
+          sed 's/\\"granted\\":\[\\"professional\\"\]/\\"granted\\":[\\"health\\"]/' testdata/consent/session1.jsonl > /tmp/consent_bad.jsonl
+          tp="$(lex run --allow-effects io src/arena/verify.lex verify '"consent"' '"/tmp/consent_bad.jsonl"' || true)"
+          echo "$tp"
+          echo "$tp" | grep -q '"intact":false' || { echo "FAIL: tampered consent trail must break the hash chain"; exit 1; }
+          echo "$tp" | grep -q '"verified":false' || { echo "FAIL: tampered trail must be rejected"; exit 1; }
+          echo "CONSENT VERIFY GREEN"
 
       - name: Policy-eval leaderboard (rank rollouts; cheat trails disqualified)
         run: |
