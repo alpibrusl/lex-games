@@ -95,6 +95,7 @@ src/
   arena/season.lex       prior standings + a round manifest → new ELO standings (head-to-head, persists)
   arena/nbazaar_season.lex  a manifest of N-player matches → ELO ratings per model (one match = one round)
   arena/bazaar_season.lex   a manifest of governed-bazaar sessions → seller reputation (revenue/deals, verified-only)
+  arena/reputation.lex      a DID-anchored agent reputation registry — verified sessions accumulate into per-did:lex trustMetrics
 cli/games                thin launcher
 docs/ADDING_A_GAME.md    how to add your own game (the game contract + steps)
 testdata/                a real sample trail (CI verifies it)

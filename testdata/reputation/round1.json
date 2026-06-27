@@ -1,0 +1,5 @@
+[
+  { "did": "did:lex:agent:alice", "score": 3000, "verified": true,  "won": true },
+  { "did": "did:lex:agent:bob",   "score": 2000, "verified": true,  "won": false },
+  { "did": "did:lex:agent:carol", "score": 9000, "verified": false, "won": true }
+]
