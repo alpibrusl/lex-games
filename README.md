@@ -140,6 +140,36 @@ lex run --allow-effects io src/arena/nbazaar_season.lex run '"s1.json"' '"testda
 A tampered match trail breaks its content ids → every seat in it is disqualified,
 so a fabricated trail can never manufacture a win or a rating gain.
 
+## Governed Bazaar — verifiable agent commerce
+
+`games/gbazaar.lex` applies the same model to **money**. The Magentic Bazaar in
+[lex-robot](https://github.com/alpibrusl/lex-robot) (`examples/bazaar_*`) is a
+governed agent marketplace: agents buy from agents under a signed budget token,
+each purchase authorized by `lex-guard`'s spend gate and settled over x402, all
+attested to a hash-chained trail. `gbazaar` reads the budget *from the trail*
+(`budget.opened`) and replays every settlement to recompute compliance:
+
+- **integrity** — each line's content id recomputes (tamper-evident)
+- **no rogue merchant** — every settlement is to an allow-listed seller
+- **no over-cap transaction** / **no overspend** — within the per-tx and total caps
+
+`verified = intact AND compliant`. The two-layer guarantee is the point: the hash
+chain catches edits, *and* the compliance replay catches a perfectly-hashed trail
+that pays a rogue merchant or overspends — you cannot forge a clean governed
+session (see `tools/gen_gbazaar_forged.lex` + the CI checks).
+
+`arena/bazaar_season.lex` turns a manifest of governed sessions into a **seller
+reputation** board — revenue + deals per merchant, counting **only sessions that
+verify**, so a tampered or non-compliant session earns its sellers nothing:
+
+```bash
+# 3-session field (2 honest + 1 forged) → the forged session's seller is absent
+lex run --allow-effects io src/arena/bazaar_season.lex run '"testdata/gbazaar/reputation.json"'
+# → textile 4800 (2 deals) · pottery 3300 · data 1200 · books 900 · rogue.seller ABSENT
+```
+
+It feeds the lobby's TOP SELLERS board in lex-robot.
+
 ## Verifiable robot benchmarks
 
 `games/robot_task.lex` extends the "trail, not score" model to **robots**. A
