@@ -30,7 +30,7 @@ jobs:
       - name: Type-check
         run: |
           set -euo pipefail
-          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/nbazaar.lex src/games/gbazaar.lex src/games/consent.lex src/games/robot_task.lex src/arena/verify.lex src/arena/rank.lex src/arena/leaderboard.lex src/arena/elo.lex src/arena/standings.lex src/arena/season.lex src/arena/nbazaar_season.lex src/arena/bazaar_season.lex src/arena/export.lex tools/gen_robot_structured.lex tools/gen_nbazaar_sample.lex tools/gen_gbazaar_forged.lex tools/gen_gbazaar_session2.lex tools/gen_consent_forged.lex; do
+          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/nbazaar.lex src/games/gbazaar.lex src/games/consent.lex src/games/capability.lex src/games/robot_task.lex src/arena/verify.lex src/arena/rank.lex src/arena/leaderboard.lex src/arena/elo.lex src/arena/standings.lex src/arena/season.lex src/arena/nbazaar_season.lex src/arena/bazaar_season.lex src/arena/export.lex tools/gen_robot_structured.lex tools/gen_nbazaar_sample.lex tools/gen_gbazaar_forged.lex tools/gen_gbazaar_session2.lex tools/gen_consent_forged.lex tools/gen_capability_forged.lex; do
             echo "== $f =="; lex check "$f"
           done
 
@@ -166,6 +166,33 @@ jobs:
           echo "$tp" | grep -q '"intact":false' || { echo "FAIL: tampered consent trail must break the hash chain"; exit 1; }
           echo "$tp" | grep -q '"verified":false' || { echo "FAIL: tampered trail must be rejected"; exit 1; }
           echo "CONSENT VERIFY GREEN"
+
+      - name: Capability — one token, data AND money in one trail (honest → ok, forged → both rejected)
+        run: |
+          set -euo pipefail
+          # honest unified session: reads + spends under one policy; both halves compliant.
+          out="$(lex run --allow-effects io src/arena/verify.lex verify '"capability"' '"testdata/capability/session1.jsonl"')"
+          echo "$out"
+          echo "$out" | grep -q '"verified":true' || { echo "FAIL: honest capability session should verify"; exit 1; }
+          echo "$out" | grep -q '"data_compliant":true' || { echo "FAIL: data half should be compliant"; exit 1; }
+          echo "$out" | grep -q '"spend_compliant":true' || { echo "FAIL: spend half should be compliant"; exit 1; }
+          echo "$out" | grep -q '"settled":3000' || { echo "FAIL: settled total must recompute to 3000"; exit 1; }
+          # forged: valid hashes, but a grant for a deny-listed scope AND an over-cap
+          # spend to a rogue merchant — both halves of the one token are re-checked.
+          lex run --allow-effects io tools/gen_capability_forged.lex gen '"/tmp/cap_forged.jsonl"'
+          fg="$(lex run --allow-effects io src/arena/verify.lex verify '"capability"' '"/tmp/cap_forged.jsonl"' || true)"
+          echo "$fg"
+          echo "$fg" | grep -q '"intact":true' || { echo "FAIL: forged trail hashes should still be intact"; exit 1; }
+          echo "$fg" | grep -q '"data_compliant":false' || { echo "FAIL: the leaked scope must fail the data half"; exit 1; }
+          echo "$fg" | grep -q '"spend_compliant":false' || { echo "FAIL: the rogue over-cap spend must fail the money half"; exit 1; }
+          echo "$fg" | grep -q '"verified":false' || { echo "FAIL: a non-compliant capability trail must be rejected"; exit 1; }
+          # tamper a settled amount → its content id breaks → intact:false → rejected.
+          sed 's/\\"amount\\":1200/\\"amount\\":200/' testdata/capability/session1.jsonl > /tmp/cap_bad.jsonl
+          tp="$(lex run --allow-effects io src/arena/verify.lex verify '"capability"' '"/tmp/cap_bad.jsonl"' || true)"
+          echo "$tp"
+          echo "$tp" | grep -q '"intact":false' || { echo "FAIL: tampered capability trail must break the hash chain"; exit 1; }
+          echo "$tp" | grep -q '"verified":false' || { echo "FAIL: tampered trail must be rejected"; exit 1; }
+          echo "CAPABILITY VERIFY GREEN"
 
       - name: Policy-eval leaderboard (rank rollouts; cheat trails disqualified)
         run: |
