@@ -30,7 +30,7 @@ jobs:
       - name: Type-check
         run: |
           set -euo pipefail
-          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/nbazaar.lex src/games/gbazaar.lex src/games/consent.lex src/games/capability.lex src/games/robot_task.lex src/arena/verify.lex src/arena/rank.lex src/arena/leaderboard.lex src/arena/elo.lex src/arena/standings.lex src/arena/season.lex src/arena/nbazaar_season.lex src/arena/bazaar_season.lex src/arena/export.lex tools/gen_robot_structured.lex tools/gen_nbazaar_sample.lex tools/gen_gbazaar_forged.lex tools/gen_gbazaar_session2.lex tools/gen_consent_forged.lex tools/gen_capability_forged.lex; do
+          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/nbazaar.lex src/games/gbazaar.lex src/games/consent.lex src/games/capability.lex src/games/robot_task.lex src/arena/verify.lex src/arena/rank.lex src/arena/leaderboard.lex src/arena/elo.lex src/arena/standings.lex src/arena/season.lex src/arena/nbazaar_season.lex src/arena/bazaar_season.lex src/arena/reputation.lex src/arena/export.lex tools/gen_robot_structured.lex tools/gen_nbazaar_sample.lex tools/gen_gbazaar_forged.lex tools/gen_gbazaar_session2.lex tools/gen_consent_forged.lex tools/gen_capability_forged.lex; do
             echo "== $f =="; lex check "$f"
           done
 
@@ -193,6 +193,17 @@ jobs:
           echo "$tp" | grep -q '"intact":false' || { echo "FAIL: tampered capability trail must break the hash chain"; exit 1; }
           echo "$tp" | grep -q '"verified":false' || { echo "FAIL: tampered trail must be rejected"; exit 1; }
           echo "CAPABILITY VERIFY GREEN"
+
+      - name: Reputation registry — DID-anchored, accumulates, verified-only
+        run: |
+          set -euo pipefail
+          # round 1: alice + bob verified; carol's session is unverified → must not count.
+          lex run --allow-effects io src/arena/reputation.lex run '"/tmp/none.json"' '"testdata/reputation/round1.json"' | grep '^{' | tee /tmp/reg1.json
+          python3 -c "import json; d=json.load(open('/tmp/reg1.json')); m={p['did']:p for p in d['profiles']}; assert d['players']==2,d; assert 'did:lex:agent:carol' not in m,'unverified session must not earn reputation'; assert m['did:lex:agent:alice']['reputation']==3000 and m['did:lex:agent:alice']['sessions']==1; assert d['profiles'][0]['did']=='did:lex:agent:alice'; print('reputation round1 ok:',[(p['did'],p['reputation']) for p in d['profiles']])"
+          # round 2: chain; bob accumulates (2000+4000) and overtakes; alice carries forward.
+          lex run --allow-effects io src/arena/reputation.lex run '"/tmp/reg1.json"' '"testdata/reputation/round2.json"' | grep '^{' | tee /tmp/reg2.json
+          python3 -c "import json; a={p['did']:p for p in json.load(open('/tmp/reg1.json'))['profiles']}; b={p['did']:p for p in json.load(open('/tmp/reg2.json'))['profiles']}; assert b['did:lex:agent:bob']['reputation']==6000 and b['did:lex:agent:bob']['sessions']==2,'bob must accumulate across rounds'; assert b['did:lex:agent:alice']['reputation']==a['did:lex:agent:alice']['reputation'],'sitting-out agent carries forward unchanged'; assert json.load(open('/tmp/reg2.json'))['profiles'][0]['did']=='did:lex:agent:bob'; print('reputation round2 ok: accumulation + carry-forward')"
+          echo "REPUTATION GREEN"
 
       - name: Policy-eval leaderboard (rank rollouts; cheat trails disqualified)
         run: |
