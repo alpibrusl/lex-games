@@ -30,7 +30,7 @@ jobs:
       - name: Type-check
         run: |
           set -euo pipefail
-          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/nbazaar.lex src/games/gbazaar.lex src/games/consent.lex src/games/capability.lex src/games/ops.lex src/games/robot_task.lex src/arena/verify.lex src/arena/rank.lex src/arena/leaderboard.lex src/arena/elo.lex src/arena/standings.lex src/arena/season.lex src/arena/nbazaar_season.lex src/arena/bazaar_season.lex src/arena/reputation.lex src/arena/export.lex tools/gen_robot_structured.lex tools/gen_nbazaar_sample.lex tools/gen_gbazaar_forged.lex tools/gen_gbazaar_session2.lex tools/gen_consent_forged.lex tools/gen_capability_forged.lex tools/gen_ops_forged.lex; do
+          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/nbazaar.lex src/games/gbazaar.lex src/games/consent.lex src/games/capability.lex src/games/ops.lex src/games/robot_task.lex src/games/template.lex src/arena/verify.lex src/arena/rank.lex src/arena/leaderboard.lex src/arena/elo.lex src/arena/standings.lex src/arena/season.lex src/arena/nbazaar_season.lex src/arena/bazaar_season.lex src/arena/reputation.lex src/arena/export.lex tools/gen_robot_structured.lex tools/gen_robot_sample.lex tools/gen_nbazaar_sample.lex tools/gen_gbazaar_forged.lex tools/gen_gbazaar_session2.lex tools/gen_consent_forged.lex tools/gen_capability_forged.lex tools/gen_ops_forged.lex tools/gen_policy_fixtures.lex tools/gen_template_sample.lex; do
             echo "== $f =="; lex check "$f"
           done
 
@@ -70,6 +70,23 @@ jobs:
           echo "$si" | grep -q '"legal":false' || { echo "FAIL: out-of-grant move must be illegal"; exit 1; }
           echo "$si" | grep -q '"verified":false' || { echo "FAIL: unauthorized success must not verify"; exit 1; }
           echo "ALL GREEN"
+
+      - name: Template (Token Pick) — the copy-me game verifies too (honest → verified, tampered → rejected)
+        run: |
+          set -euo pipefail
+          # the generator and the committed fixture must stay in sync
+          lex run --allow-effects io tools/gen_template_sample.lex gen '"/tmp/template-regen.jsonl"'
+          diff /tmp/template-regen.jsonl testdata/template-sample.jsonl || { echo "FAIL: committed template sample must match its generator"; exit 1; }
+          out="$(lex run --allow-effects io src/arena/verify.lex verify '"template"' '"testdata/template-sample.jsonl"')"
+          echo "$out"
+          echo "$out" | grep -q '"verified":true' || { echo "FAIL: template sample should verify"; exit 1; }
+          echo "$out" | grep -q '"p1":16' || { echo "FAIL: P1 score must recompute to 16"; exit 1; }
+          echo "$out" | grep -q '"p2":13' || { echo "FAIL: P2 score must recompute to 13"; exit 1; }
+          sed 's/\\"pick\\":1/\\"pick\\":2/' testdata/template-sample.jsonl > /tmp/tmpl_bad.jsonl
+          bad="$(lex run --allow-effects io src/arena/verify.lex verify '"template"' '"/tmp/tmpl_bad.jsonl"' || true)"
+          echo "$bad"
+          echo "$bad" | grep -q '"verified":false' || { echo "FAIL: tampered template trail should be rejected"; exit 1; }
+          echo "TEMPLATE VERIFY GREEN"
 
       - name: N-player Bazaar — verify a multi-model match trail (honest → verified, tampered → rejected)
         run: |
@@ -194,15 +211,26 @@ jobs:
           echo "$tp" | grep -q '"verified":false' || { echo "FAIL: tampered trail must be rejected"; exit 1; }
           echo "CAPABILITY VERIFY GREEN"
 
-      - name: Reputation registry — DID-anchored, accumulates, verified-only
+      - name: Reputation registry — DID-anchored, accumulates, replayed-from-trail only
         run: |
           set -euo pipefail
-          # round 1: alice + bob verified; carol's session is unverified → must not count.
+          # A batch row is {did, game, trail, seat, won}: it names a TRAIL, never a
+          # score. The registry replays each trail through the game's verifier and
+          # credits only the RECOMPUTED score, only when the replay verifies.
+          # round 1: alice/bob are the two seats of the bazaar sample match (replays
+          # to 35/30); carol submits a forged gbazaar trail (intact hashes, rogue
+          # merchant) claiming a win → replay rejects it → she earns NOTHING.
           lex run --allow-effects io src/arena/reputation.lex run '"/tmp/none.json"' '"testdata/reputation/round1.json"' | grep '^{' | tee /tmp/reg1.json
-          python3 -c "import json; d=json.load(open('/tmp/reg1.json')); m={p['did']:p for p in d['profiles']}; assert d['players']==2,d; assert 'did:lex:agent:carol' not in m,'unverified session must not earn reputation'; assert m['did:lex:agent:alice']['reputation']==3000 and m['did:lex:agent:alice']['sessions']==1; assert d['profiles'][0]['did']=='did:lex:agent:alice'; print('reputation round1 ok:',[(p['did'],p['reputation']) for p in d['profiles']])"
-          # round 2: chain; bob accumulates (2000+4000) and overtakes; alice carries forward.
+          python3 -c "import json; d=json.load(open('/tmp/reg1.json')); m={p['did']:p for p in d['profiles']}; assert d['players']==2 and d['verified']==2 and d['void']==1,d; assert 'did:lex:agent:carol' not in m,'a forged session must not earn reputation'; assert m['did:lex:agent:alice']['reputation']==35 and m['did:lex:agent:alice']['sessions']==1,'alice must be credited the REPLAYED P1 score'; assert m['did:lex:agent:bob']['reputation']==30,'bob must be credited the REPLAYED P2 score'; assert d['profiles'][0]['did']=='did:lex:agent:alice'; print('reputation round1 ok:',[(p['did'],p['reputation']) for p in d['profiles']])"
+          # round 2: chain; bob adds a verified robot_task run (replays to 148) and
+          # overtakes (30+148=178); alice sits out and carries forward unchanged.
           lex run --allow-effects io src/arena/reputation.lex run '"/tmp/reg1.json"' '"testdata/reputation/round2.json"' | grep '^{' | tee /tmp/reg2.json
-          python3 -c "import json; a={p['did']:p for p in json.load(open('/tmp/reg1.json'))['profiles']}; b={p['did']:p for p in json.load(open('/tmp/reg2.json'))['profiles']}; assert b['did:lex:agent:bob']['reputation']==6000 and b['did:lex:agent:bob']['sessions']==2,'bob must accumulate across rounds'; assert b['did:lex:agent:alice']['reputation']==a['did:lex:agent:alice']['reputation'],'sitting-out agent carries forward unchanged'; assert json.load(open('/tmp/reg2.json'))['profiles'][0]['did']=='did:lex:agent:bob'; print('reputation round2 ok: accumulation + carry-forward')"
+          python3 -c "import json; a={p['did']:p for p in json.load(open('/tmp/reg1.json'))['profiles']}; b={p['did']:p for p in json.load(open('/tmp/reg2.json'))['profiles']}; assert b['did:lex:agent:bob']['reputation']==178 and b['did:lex:agent:bob']['sessions']==2,'bob must accumulate the replayed robot_task score'; assert b['did:lex:agent:alice']['reputation']==a['did:lex:agent:alice']['reputation'],'sitting-out agent carries forward unchanged'; assert json.load(open('/tmp/reg2.json'))['profiles'][0]['did']=='did:lex:agent:bob'; print('reputation round2 ok: accumulation + carry-forward')"
+          # cheat-resistance: a batch pointing a huge claim at a TAMPERED trail earns nothing.
+          sed 's/Teapot/Teap0t/' testdata/bazaar-sample.jsonl > /tmp/rep_bad.jsonl
+          printf '[{"did":"did:lex:agent:mallory","game":"bazaar","trail":"/tmp/rep_bad.jsonl","seat":1,"won":true}]' > /tmp/rep_cheat.json
+          lex run --allow-effects io src/arena/reputation.lex run '"/tmp/none.json"' '"/tmp/rep_cheat.json"' | grep '^{' | tee /tmp/reg_cheat.json
+          python3 -c "import json; d=json.load(open('/tmp/reg_cheat.json')); assert d['players']==0 and d['void']==1,'a tampered trail must not create a profile'; print('reputation cheat-resistance ok')"
           echo "REPUTATION GREEN"
 
       - name: Agent-ops — verify a tool-use run (honest → in-bounds, forged/tampered → rejected)
@@ -274,4 +302,8 @@ jobs:
           echo "$v" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['verified'] is True; print('launcher verdict ok')"
           [ "$(printf '%s\n' "$v" | wc -l)" -eq 1 ] || { echo "FAIL: launcher stdout must be a single JSON line"; exit 1; }
           cli/games skill | head -1 | grep -q '^---$' || { echo "FAIL: skill must emit SKILL.md frontmatter"; exit 1; }
+          # version drift guard: introspect + SKILL.md must report lex.toml's version
+          pkgv="$(sed -n 's/^version *= *"\([^"]*\)".*/\1/p' lex.toml | head -n1)"
+          cli/games introspect --output json | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['version']=='$pkgv', f\"introspect version {d['version']} != lex.toml $pkgv\"; print('version sync ok:', d['version'])"
+          grep -q "v$pkgv" SKILL.md || { echo "FAIL: SKILL.md version drifted from lex.toml ($pkgv)"; exit 1; }
           echo "ACLI GREEN"

@@ -1,5 +1,5 @@
 [
-  { "did": "did:lex:agent:alice", "score": 3000, "verified": true,  "won": true },
-  { "did": "did:lex:agent:bob",   "score": 2000, "verified": true,  "won": false },
-  { "did": "did:lex:agent:carol", "score": 9000, "verified": false, "won": true }
+  { "did": "did:lex:agent:alice", "game": "bazaar",  "trail": "testdata/bazaar-sample.jsonl",  "seat": 1, "won": true },
+  { "did": "did:lex:agent:bob",   "game": "bazaar",  "trail": "testdata/bazaar-sample.jsonl",  "seat": 2, "won": false },
+  { "did": "did:lex:agent:carol", "game": "gbazaar", "trail": "testdata/gbazaar/forged.jsonl", "seat": 0, "won": true }
 ]

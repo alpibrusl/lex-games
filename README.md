@@ -96,7 +96,7 @@ src/
   arena/season.lex       prior standings + a round manifest → new ELO standings (head-to-head, persists)
   arena/nbazaar_season.lex  a manifest of N-player matches → ELO ratings per model (one match = one round)
   arena/bazaar_season.lex   a manifest of governed-bazaar sessions → seller reputation (revenue/deals, verified-only)
-  arena/reputation.lex      a DID-anchored agent reputation registry — verified sessions accumulate into per-did:lex trustMetrics
+  arena/reputation.lex      a DID-anchored agent reputation registry — each session's trail is REPLAYED through its game's verifier; only recomputed, verified scores accumulate into per-did:lex trustMetrics
 cli/games                thin launcher
 docs/ADDING_A_GAME.md    how to add your own game (the game contract + steps)
 testdata/                a real sample trail (CI verifies it)
@@ -115,8 +115,8 @@ The interactive clients + the play server live in
 [lex-robot](https://github.com/alpibrusl/lex-robot) (`examples/*_web.html`,
 `sidecar/sim_sidecar.lex`) — tic-tac-toe, Bazaar Draft, Consent Match, Charger
 Duel, Co-op Infiltration, Strategy Football, and the Robot Arena bridge. This repo
-is the framework + the verifier those produce trails for. (Follow-up: lex-robot
-will depend on this package instead of vendoring `lex_games.lex`.)
+is the framework + the verifier those produce trails for (lex-robot consumes it
+as a git dependency).
 
 ## N-player Bazaar — a model-vs-model arena
 
