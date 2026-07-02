@@ -6,7 +6,7 @@ when_to_use: "When you have a recorded game trail (JSONL) and need a trustworthy
 
 # games
 
-> Auto-generated skill file for `games` v0.1.0
+> Auto-generated skill file for `games` v0.1.1
 > Re-generate with: `games skill`
 
 Verify and export Lex arena game trails. A submission is a **trail, not a score**:

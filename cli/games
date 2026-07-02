@@ -15,7 +15,8 @@
 # Lex CLI positional args are JSON values, so this JSON-quotes string args for you.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-VERSION="0.1.0"
+# single source of truth for the version: lex.toml
+VERSION="$(sed -n 's/^version *= *"\([^"]*\)".*/\1/p' "$HERE/lex.toml" | head -n1)"
 jq_str() { printf '"%s"' "$1"; }   # naive JSON-string quote (paths/ids have no quotes)
 
 # Run a lex entrypoint and emit clean stdout. `lex run` prints the function's
