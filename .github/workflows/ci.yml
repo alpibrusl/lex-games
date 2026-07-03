@@ -69,6 +69,17 @@ jobs:
           echo "$si"
           echo "$si" | grep -q '"legal":false' || { echo "FAIL: out-of-grant move must be illegal"; exit 1; }
           echo "$si" | grep -q '"verified":false' || { echo "FAIL: unauthorized success must not verify"; exit 1; }
+          # move_base is legality-checked against its floor area the same way
+          sb="$(lex run --allow-effects io src/arena/verify.lex verify '"robot_task"' '"testdata/policy/structured_base_illegal.jsonl"' || true)"
+          echo "$sb"
+          echo "$sb" | grep -q '"legal":false' || { echo "FAIL: out-of-floor-area move_base must be illegal"; exit 1; }
+          echo "$sb" | grep -q '"verified":false' || { echo "FAIL: unauthorized base success must not verify"; exit 1; }
+          # an unknown skill name claiming success is refused outright — a cheat
+          # must not evade legality by picking a name outside the vocabulary
+          su="$(lex run --allow-effects io src/arena/verify.lex verify '"robot_task"' '"testdata/policy/structured_unknown.jsonl"' || true)"
+          echo "$su"
+          echo "$su" | grep -q '"legal":false' || { echo "FAIL: unknown-skill success must be refused"; exit 1; }
+          echo "$su" | grep -q '"verified":false' || { echo "FAIL: unverifiable actuation must not verify"; exit 1; }
           echo "ALL GREEN"
 
       - name: Template (Token Pick) — the copy-me game verifies too (honest → verified, tampered → rejected)

@@ -13,10 +13,14 @@
 #   perceive      payload {"detail":"..."}        — one per attempt
 #   plan          payload {"detail":"target ..."}
 #   execute       LEGACY:     {"detail":"reached" | "denied: ..." | "timeout" | ...}
-#                 STRUCTURED: {"skill":"move_to"|"grasp",
+#                 STRUCTURED: {"skill":"move_to"|"move_base"|"grasp",
 #                              "args":{"x","y","z","force"},          # integer milli-units
 #                              "grant":{"ws_min","ws_max","max_force","max_grip"},
 #                              "outcome":"reached" | "denied: ..." | ...}
+#                 A structured record whose skill name is outside that
+#                 vocabulary and which claims success is a VIOLATION (refuse,
+#                 don't downgrade): an actuation the referee cannot re-derive
+#                 is not verifiable.
 #   verify        payload {"detail":"outcome reached" | "gate denied: ..."}
 #   killed        payload {"detail":"... budget exhausted: ..."}  — supervisor
 #
@@ -77,11 +81,17 @@ fn in_ws(a :: ArgsI, g :: GrantI) -> Bool {
 
 fn is_success(outcome :: Str) -> Bool { has(outcome, "reached") }
 
-# Did this actuation stay inside its grant? move_to must land in the workspace
-# box; grasp must not exceed the grip-force cap; anything else is unconstrained.
+# Did this actuation stay inside its grant? move_to and move_base must land in
+# the workspace box (an arm's reach box / a base's floor area -- same check);
+# grasp must not exceed the grip-force cap. An UNKNOWN skill name is NOT
+# unconstrained: the referee refuses what it cannot re-derive (the lex-os
+# resolver rule -- refuse, don't downgrade). Otherwise a cheat could evade the
+# legality check entirely by labeling an out-of-grant actuation with any name
+# outside the vocabulary and still claim success.
 fn legal_rec(r :: SkillRec) -> Bool {
   if r.skill == "move_to" { in_ws(r.args, r.grant) }
-  else { if r.skill == "grasp" { r.args.force <= r.grant.max_grip } else { true } }
+  else { if r.skill == "move_base" { in_ws(r.args, r.grant) }
+  else { if r.skill == "grasp" { r.args.force <= r.grant.max_grip } else { false } } }
 }
 
 # A violation is a trail that *claims success* on an out-of-grant actuation — an

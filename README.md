@@ -200,7 +200,11 @@ the grant it ran under — the verifier re-checks it: a `move_to` must land insi
 the granted workspace box, a `grasp` must stay under the grip-force cap.
 A trail that *claims* `reached` on an out-of-grant move is an **unauthorized
 success**: it is `intact`, `linked`, and `goal_met`, yet `legal:false` →
-`verified:false`. The leaderboard disqualifies it even when its raw score ties
+`verified:false`. The vocabulary is strict — `move_to` and `move_base` are
+checked against the recorded workspace box, `grasp` against the grip cap, and
+a structured record with any *other* skill name that claims success is refused
+outright (refuse, don't downgrade): an actuation the referee cannot re-derive
+is not verifiable, so a cheat can't evade the check by inventing a name. The leaderboard disqualifies it even when its raw score ties
 the honest winner. `legal_checked` reports how many actuations carried a grant we
 could re-check (a legacy `detail`-only run verifies on integrity + linkage as
 before, with `legal_checked:0`).
