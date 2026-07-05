@@ -30,7 +30,7 @@ jobs:
       - name: Type-check
         run: |
           set -euo pipefail
-          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/nbazaar.lex src/games/gbazaar.lex src/games/consent.lex src/games/capability.lex src/games/ops.lex src/games/robot_task.lex src/games/template.lex src/arena/verify.lex src/arena/rank.lex src/arena/leaderboard.lex src/arena/elo.lex src/arena/standings.lex src/arena/season.lex src/arena/nbazaar_season.lex src/arena/bazaar_season.lex src/arena/reputation.lex src/arena/export.lex tools/gen_robot_structured.lex tools/gen_robot_sample.lex tools/gen_nbazaar_sample.lex tools/gen_gbazaar_forged.lex tools/gen_gbazaar_session2.lex tools/gen_consent_forged.lex tools/gen_capability_forged.lex tools/gen_ops_forged.lex tools/gen_policy_fixtures.lex tools/gen_template_sample.lex; do
+          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/nbazaar.lex src/games/gbazaar.lex src/games/consent.lex src/games/capability.lex src/games/ops.lex src/games/notary.lex src/games/robot_task.lex src/games/template.lex src/arena/verify.lex src/arena/rank.lex src/arena/leaderboard.lex src/arena/elo.lex src/arena/standings.lex src/arena/season.lex src/arena/nbazaar_season.lex src/arena/bazaar_season.lex src/arena/reputation.lex src/arena/export.lex tools/gen_robot_structured.lex tools/gen_robot_sample.lex tools/gen_nbazaar_sample.lex tools/gen_gbazaar_forged.lex tools/gen_gbazaar_session2.lex tools/gen_consent_forged.lex tools/gen_capability_forged.lex tools/gen_ops_forged.lex tools/gen_notary_sample.lex tools/gen_notary_forged.lex tools/gen_policy_fixtures.lex tools/gen_template_sample.lex; do
             echo "== $f =="; lex check "$f"
           done
 
@@ -266,6 +266,30 @@ jobs:
           tp="$(lex run --allow-effects io src/arena/verify.lex verify '"ops"' '"/tmp/ops_bad.jsonl"' || true)"
           echo "$tp"
           echo "$tp" | grep -q '"intact":false' || { echo "FAIL: tampered ops trail must break the hash chain"; exit 1; }
+          echo "$tp" | grep -q '"verified":false' || { echo "FAIL: tampered trail must be rejected"; exit 1; }
+
+      - name: Stamp of Destiny (notary) — verify a chit-stamping run (honest → solved, forged/tampered → rejected)
+        run: |
+          set -euo pipefail
+          # honest run: a legal-but-useless reversed stamp, then the legal solve.
+          out="$(lex run --allow-effects io src/arena/verify.lex verify '"notary"' '"testdata/notary/session1.jsonl"')"
+          echo "$out"
+          echo "$out" | grep -q '"verified":true' || { echo "FAIL: honest notary run should verify"; exit 1; }
+          echo "$out" | grep -q '"stamped":2' || { echo "FAIL: 2 stamps expected"; exit 1; }
+          echo "$out" | grep -q '"solved":true' || { echo "FAIL: the case should be solved"; exit 1; }
+          echo "$out" | grep -q '"rogue":\[\]' || { echo "FAIL: no rogue category should be stamped"; exit 1; }
+          # forged: valid hashes, but a stamp claiming legal:true for an out-of-license category.
+          lex run --allow-effects io tools/gen_notary_forged.lex gen '"/tmp/notary_forged.jsonl"'
+          fg="$(lex run --allow-effects io src/arena/verify.lex verify '"notary"' '"/tmp/notary_forged.jsonl"' || true)"
+          echo "$fg"
+          echo "$fg" | grep -q '"intact":true' || { echo "FAIL: forged trail hashes should still be intact"; exit 1; }
+          echo "$fg" | grep -q '"rogue":\["species_declaration"\]' || { echo "FAIL: the out-of-license category must be flagged"; exit 1; }
+          echo "$fg" | grep -q '"verified":false' || { echo "FAIL: an unauthorized stamp must be rejected"; exit 1; }
+          # tamper the recorded claim text → its content id breaks → intact:false → rejected.
+          sed 's/haddock, filleted/HADDOCK, filleted/' testdata/notary/session1.jsonl > /tmp/notary_bad.jsonl
+          tp="$(lex run --allow-effects io src/arena/verify.lex verify '"notary"' '"/tmp/notary_bad.jsonl"' || true)"
+          echo "$tp"
+          echo "$tp" | grep -q '"intact":false' || { echo "FAIL: tampered notary trail must break the hash chain"; exit 1; }
           echo "$tp" | grep -q '"verified":false' || { echo "FAIL: tampered trail must be rejected"; exit 1; }
           echo "OPS VERIFY GREEN"
 

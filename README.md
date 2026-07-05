@@ -84,6 +84,7 @@ src/
   games/consent.lex      Consent — replay an a2p-style consent trail → compliance verdict (no leaked scope)
   games/ops.lex          Agent-ops — replay a tool-use run → compliance verdict (no rogue tool / over budget)
   games/capability.lex   Capability — one token over data AND money → unified verdict (no leaked scope / no overspend)
+  games/notary.lex       Stamp of Destiny — replay a chit-stamping run → verdict (no unlicensed category stamped)
   games/robot_task.lex   Robot Task verifier — folds a lex-robot run trail → scored verdict
   games/template.lex     TEMPLATE — copy this to start a new game's verifier
   arena/trail_file.lex   portable JSONL trail format (self-verifying; matches the finance arena)
