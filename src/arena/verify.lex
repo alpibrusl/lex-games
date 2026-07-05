@@ -21,6 +21,7 @@ import "../games/gbazaar"    as gbazaar
 import "../games/consent"    as consent
 import "../games/capability" as capability
 import "../games/ops"        as ops
+import "../games/notary"     as notary
 import "../games/template"   as template
 import "../games/robot_task" as robot_task
 
@@ -71,9 +72,14 @@ fn verify(game :: Str, trail_path :: Str) -> [io] Int {
         let _ := io.print(ops.verdict_json(v))
         if v.verified { 0 } else { 1 }
       } else {
+      if game == "notary" {
+        let v := notary.verdict(lines)
+        let _ := io.print(notary.verdict_json(v))
+        if v.verified { 0 } else { 1 }
+      } else {
         let _ := io.print(str.concat("{\"verified\":false,\"error\":\"unknown game: ", str.concat(game, "\"}")))
         1
-      }}}}}}}}
+      }}}}}}}}}
     },
   }
 }
