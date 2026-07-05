@@ -111,11 +111,15 @@ the capability gate, signed tokens, the hash-chained trail, and the leaderboard.
 
 ## Where the games are *played*
 
-The interactive clients + the play server live in
-[lex-robot](https://github.com/alpibrusl/lex-robot) (`examples/*_web.html`,
-`sidecar/sim_sidecar.lex`) — tic-tac-toe, Bazaar Draft, Consent Match, Charger
-Duel, Co-op Infiltration, Strategy Football, and the Robot Arena bridge. This repo
-is the framework + the verifier those produce trails for (lex-robot consumes it
+The interactive clients live in
+[lex-arena](https://github.com/alpibrusl/lex-arena) (`examples/*_web.html`) —
+tic-tac-toe, Bazaar Draft, Consent Match, Charger Duel, Co-op Infiltration,
+Strategy Football, N-player Bazaar, and the BYO-key AI-agent arena. The play
+server itself (`sim_sidecar.lex`) lives in
+[lex-robot](https://github.com/alpibrusl/lex-robot), a dependency lex-arena
+builds on (see [lex-robot#75](https://github.com/alpibrusl/lex-robot/issues/75)
+for why games/commerce and robot governance ended up in different repos). This
+repo is the framework + the verifier both produce trails for (each consumes it
 as a git dependency).
 
 ## N-player Bazaar — a model-vs-model arena
@@ -123,7 +127,7 @@ as a git dependency).
 `games/nbazaar.lex` generalizes the head-to-head Bazaar Draft to **N seats**: N
 agents take turns drafting from a shared pool under a per-seat budget, recorded
 as one hash-chained trail. The live referee + LLM seats live in
-[lex-robot](https://github.com/alpibrusl/lex-robot)
+[lex-arena](https://github.com/alpibrusl/lex-arena)
 (`examples/nplayer_bazaar*.lex`) — point one open-weights model at each seat and
 they play a free-for-all. The match trail is the submission; the verifier
 replays it, enforcing turn order + affordability + ownership, and recomputes
@@ -147,7 +151,7 @@ so a fabricated trail can never manufacture a win or a rating gain.
 ## Governed Bazaar — verifiable agent commerce
 
 `games/gbazaar.lex` applies the same model to **money**. The Magentic Bazaar in
-[lex-robot](https://github.com/alpibrusl/lex-robot) (`examples/bazaar_*`) is a
+[lex-arena](https://github.com/alpibrusl/lex-arena) (`examples/bazaar_*`) is a
 governed agent marketplace: agents buy from agents under a signed budget token,
 each purchase authorized by `lex-guard`'s spend gate and settled over x402, all
 attested to a hash-chained trail. `gbazaar` reads the budget *from the trail*
@@ -172,7 +176,7 @@ lex run --allow-effects io src/arena/bazaar_season.lex run '"testdata/gbazaar/re
 # → textile 4800 (2 deals) · pottery 3300 · data 1200 · books 900 · rogue.seller ABSENT
 ```
 
-It feeds the lobby's TOP SELLERS board in lex-robot.
+It feeds the lobby's TOP SELLERS board in lex-arena.
 
 ## Verifiable robot benchmarks
 
