@@ -1,0 +1,2 @@
+{"id":"b10a918ebd0864e092361fa4dca3755ea16c42952972022be32d88d103e07b93","kind":"move","parent":"","payload_json":"{\"kind\":\"roles\",\"assign\":{\"0\":\"villager\",\"1\":\"wolf\",\"2\":\"seer\",\"3\":\"villager\",\"4\":\"villager\"}}","ts_ms":1782600000000}
+{"id":"6993f933a7446df41fb252259d99809f15ebf4cb0e656bc943901d82a9397e9b","kind":"move","parent":"b10a918ebd0864e092361fa4dca3755ea16c42952972022be32d88d103e07b93","payload_json":"{\"kind\":\"kill\",\"by\":3,\"target\":4}","ts_ms":1782600001000}

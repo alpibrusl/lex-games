@@ -86,6 +86,7 @@ src/
   games/capability.lex   Capability — one token over data AND money → unified verdict (no leaked scope / no overspend)
   games/notary.lex       Stamp of Destiny — replay a chit-stamping run → verdict (no unlicensed category stamped)
   games/wedding.lex      The Wedding Broker — replay a negotiation run → verdict (no over-budget / over-slot ruling)
+  games/werewolf.lex     Werewolf — replay a social-deduction game → verdict (roles committed up front, no forged kill/inspect/lynch)
   games/robot_task.lex   Robot Task verifier — folds a lex-robot run trail → scored verdict
   games/template.lex     TEMPLATE — copy this to start a new game's verifier
   arena/trail_file.lex   portable JSONL trail format (self-verifying; matches the finance arena)

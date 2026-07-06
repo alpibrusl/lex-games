@@ -23,6 +23,7 @@ import "../games/capability" as capability
 import "../games/ops"        as ops
 import "../games/notary"     as notary
 import "../games/wedding"    as wedding
+import "../games/werewolf"   as werewolf
 import "../games/template"   as template
 import "../games/robot_task" as robot_task
 
@@ -83,9 +84,14 @@ fn verify(game :: Str, trail_path :: Str) -> [io] Int {
         let _ := io.print(wedding.verdict_json(v))
         if v.verified { 0 } else { 1 }
       } else {
+      if game == "werewolf" {
+        let v := werewolf.verdict(lines)
+        let _ := io.print(werewolf.verdict_json(v))
+        if v.verified { 0 } else { 1 }
+      } else {
         let _ := io.print(str.concat("{\"verified\":false,\"error\":\"unknown game: ", str.concat(game, "\"}")))
         1
-      }}}}}}}}}}
+      }}}}}}}}}}}
     },
   }
 }
