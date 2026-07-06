@@ -30,7 +30,7 @@ jobs:
       - name: Type-check
         run: |
           set -euo pipefail
-          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/nbazaar.lex src/games/gbazaar.lex src/games/consent.lex src/games/capability.lex src/games/ops.lex src/games/notary.lex src/games/robot_task.lex src/games/template.lex src/arena/verify.lex src/arena/rank.lex src/arena/leaderboard.lex src/arena/elo.lex src/arena/standings.lex src/arena/season.lex src/arena/nbazaar_season.lex src/arena/bazaar_season.lex src/arena/reputation.lex src/arena/export.lex tools/gen_robot_structured.lex tools/gen_robot_sample.lex tools/gen_nbazaar_sample.lex tools/gen_gbazaar_forged.lex tools/gen_gbazaar_session2.lex tools/gen_consent_forged.lex tools/gen_capability_forged.lex tools/gen_ops_forged.lex tools/gen_notary_sample.lex tools/gen_notary_forged.lex tools/gen_policy_fixtures.lex tools/gen_template_sample.lex; do
+          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/nbazaar.lex src/games/gbazaar.lex src/games/consent.lex src/games/capability.lex src/games/ops.lex src/games/notary.lex src/games/wedding.lex src/games/robot_task.lex src/games/template.lex src/arena/verify.lex src/arena/rank.lex src/arena/leaderboard.lex src/arena/elo.lex src/arena/standings.lex src/arena/season.lex src/arena/nbazaar_season.lex src/arena/bazaar_season.lex src/arena/reputation.lex src/arena/export.lex tools/gen_robot_structured.lex tools/gen_robot_sample.lex tools/gen_nbazaar_sample.lex tools/gen_gbazaar_forged.lex tools/gen_gbazaar_session2.lex tools/gen_consent_forged.lex tools/gen_capability_forged.lex tools/gen_ops_forged.lex tools/gen_notary_sample.lex tools/gen_notary_forged.lex tools/gen_wedding_sample.lex tools/gen_wedding_forged.lex tools/gen_policy_fixtures.lex tools/gen_template_sample.lex; do
             echo "== $f =="; lex check "$f"
           done
 
@@ -292,6 +292,33 @@ jobs:
           echo "$tp" | grep -q '"intact":false' || { echo "FAIL: tampered notary trail must break the hash chain"; exit 1; }
           echo "$tp" | grep -q '"verified":false' || { echo "FAIL: tampered trail must be rejected"; exit 1; }
           echo "OPS VERIFY GREEN"
+
+      - name: The Wedding Broker — verify a negotiation run (honest → fits exactly, forged/tampered → rejected)
+        run: |
+          set -euo pipefail
+          # honest run: Deb (150/1) + Jonah (50/1) approved — exactly the 200 budget and 2 slots caps; Kamala denied.
+          out="$(lex run --allow-effects io src/arena/verify.lex verify '"wedding"' '"testdata/wedding/session1.jsonl"')"
+          echo "$out"
+          echo "$out" | grep -q '"verified":true' || { echo "FAIL: honest wedding run should verify"; exit 1; }
+          echo "$out" | grep -q '"budget_used":200' || { echo "FAIL: budget_used should be exactly 200"; exit 1; }
+          echo "$out" | grep -q '"slots_used":2' || { echo "FAIL: slots_used should be exactly 2"; exit 1; }
+          echo "$out" | grep -q '"approved":\["deb","jonah"\]' || { echo "FAIL: deb+jonah should be approved"; exit 1; }
+          echo "$out" | grep -q '"denied":\["kamala"\]' || { echo "FAIL: kamala should be denied"; exit 1; }
+          # forged: valid hashes, but Deb's cost is recorded as 50 (real cost 150) — also blows the slots cap.
+          lex run --allow-effects io tools/gen_wedding_forged.lex gen '"/tmp/wedding_forged.jsonl"'
+          fg="$(lex run --allow-effects io src/arena/verify.lex verify '"wedding"' '"/tmp/wedding_forged.jsonl"' || true)"
+          echo "$fg"
+          echo "$fg" | grep -q '"intact":true' || { echo "FAIL: forged trail hashes should still be intact"; exit 1; }
+          echo "$fg" | grep -q '"rogue":\["deb"\]' || { echo "FAIL: deb's mismatched cost must be flagged"; exit 1; }
+          echo "$fg" | grep -q '"over_authority":true' || { echo "FAIL: 3 approvals must exceed the 2-slot cap"; exit 1; }
+          echo "$fg" | grep -q '"verified":false' || { echo "FAIL: a forged/over-authority run must be rejected"; exit 1; }
+          # tamper an approved cost → its content id breaks → intact:false → rejected.
+          sed 's/"budget_cost\\":150/"budget_cost\\":140/' testdata/wedding/session1.jsonl > /tmp/wedding_bad.jsonl
+          tp="$(lex run --allow-effects io src/arena/verify.lex verify '"wedding"' '"/tmp/wedding_bad.jsonl"' || true)"
+          echo "$tp"
+          echo "$tp" | grep -q '"intact":false' || { echo "FAIL: tampered wedding trail must break the hash chain"; exit 1; }
+          echo "$tp" | grep -q '"verified":false' || { echo "FAIL: tampered trail must be rejected"; exit 1; }
+          echo "WEDDING VERIFY GREEN"
 
       - name: Policy-eval leaderboard (rank rollouts; cheat trails disqualified)
         run: |
