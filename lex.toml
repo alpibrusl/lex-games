@@ -5,8 +5,19 @@ lex     = "0.10.0"
 license = "EUPL-1.2"
 description = "Capability-gated, verifiable turn games + the arena verifier (replay a trail -> score)."
 
-# The framework (src/lex_games.lex) and the verifier are std + lex-trail only —
-# deliberately lean so the hosted arena verify-worker can clone and build a small
-# image (it does not need the lex-robot demo/robot tree).
+# The framework (src/lex_games.lex) and most verifiers are std + lex-trail
+# only — deliberately lean so the hosted arena verify-worker can clone and
+# build a small image (it does not need the lex-robot demo/robot tree).
+#
+# games/trading.lex is the one exception: it needs lex-money/lex-positions'
+# REAL WAAC/PnL math (not a reimplementation) to independently replay order
+# fills at the same precision lex-trading's own market.lex computes them at
+# — a hand-rolled reimplementation risks rounding drift from the real
+# thing, which would make the verifier flag a legitimately fair match as
+# rogue. Both are themselves lean pure-math libraries (no heavy transitive
+# deps beyond each other), so this doesn't meaningfully compromise the
+# small-image goal above.
 [dependencies]
-lex-trail = { git = "https://github.com/alpibrusl/lex-trail" }
+lex-trail     = { git = "https://github.com/alpibrusl/lex-trail" }
+lex-money     = { git = "https://github.com/alpibrusl/lex-money" }
+lex-positions = { git = "https://github.com/alpibrusl/lex-positions" }
