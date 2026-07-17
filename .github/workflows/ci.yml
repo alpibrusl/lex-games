@@ -30,7 +30,7 @@ jobs:
       - name: Type-check
         run: |
           set -euo pipefail
-          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/nbazaar.lex src/games/gbazaar.lex src/games/consent.lex src/games/capability.lex src/games/ops.lex src/games/notary.lex src/games/wedding.lex src/games/werewolf.lex src/games/robot_task.lex src/games/template.lex src/arena/verify.lex src/arena/rank.lex src/arena/leaderboard.lex src/arena/elo.lex src/arena/standings.lex src/arena/season.lex src/arena/nbazaar_season.lex src/arena/bazaar_season.lex src/arena/reputation.lex src/arena/export.lex tools/gen_robot_structured.lex tools/gen_robot_sample.lex tools/gen_nbazaar_sample.lex tools/gen_gbazaar_forged.lex tools/gen_gbazaar_session2.lex tools/gen_consent_forged.lex tools/gen_capability_forged.lex tools/gen_ops_forged.lex tools/gen_notary_sample.lex tools/gen_notary_forged.lex tools/gen_wedding_sample.lex tools/gen_wedding_forged.lex tools/gen_werewolf_sample.lex tools/gen_werewolf_forged.lex tools/gen_policy_fixtures.lex tools/gen_template_sample.lex; do
+          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/nbazaar.lex src/games/gbazaar.lex src/games/consent.lex src/games/capability.lex src/games/ops.lex src/games/notary.lex src/games/wedding.lex src/games/werewolf.lex src/games/trading.lex src/games/robot_task.lex src/games/template.lex src/arena/verify.lex src/arena/rank.lex src/arena/leaderboard.lex src/arena/elo.lex src/arena/standings.lex src/arena/season.lex src/arena/nbazaar_season.lex src/arena/bazaar_season.lex src/arena/reputation.lex src/arena/export.lex tools/gen_robot_structured.lex tools/gen_robot_sample.lex tools/gen_nbazaar_sample.lex tools/gen_gbazaar_forged.lex tools/gen_gbazaar_session2.lex tools/gen_consent_forged.lex tools/gen_capability_forged.lex tools/gen_ops_forged.lex tools/gen_notary_sample.lex tools/gen_notary_forged.lex tools/gen_wedding_sample.lex tools/gen_wedding_forged.lex tools/gen_werewolf_sample.lex tools/gen_werewolf_forged.lex tools/gen_trading_sample.lex tools/gen_trading_forged.lex tools/gen_policy_fixtures.lex tools/gen_template_sample.lex; do
             echo "== $f =="; lex check "$f"
           done
 
@@ -346,6 +346,37 @@ jobs:
           echo "$tp" | grep -q '"intact":false' || { echo "FAIL: tampered werewolf trail must break the hash chain"; exit 1; }
           echo "$tp" | grep -q '"verified":false' || { echo "FAIL: tampered trail must be rejected"; exit 1; }
           echo "WEREWOLF VERIFY GREEN"
+
+      - name: Verify the Trading trail (honest → verified, rigged tape → rejected)
+        run: |
+          set -euo pipefail
+          # honest game: the tape is re-derived from the committed seed, seat 2
+          # buys AAPL at a price the tape actually showed, and the claimed winner
+          # is whichever seat the replayed equity really favours.
+          lex run --allow-effects io,crypto tools/gen_trading_sample.lex gen '"/tmp/trading_session1.jsonl"'
+          out="$(lex run --allow-effects io src/arena/verify.lex verify '"trading"' '"/tmp/trading_session1.jsonl"')"
+          echo "$out"
+          echo "$out" | grep -q '"verified":true' || { echo "FAIL: honest trading game should verify"; exit 1; }
+          echo "$out" | grep -q '"setup_committed":true' || { echo "FAIL: the setup must be committed up front"; exit 1; }
+          echo "$out" | grep -q '"price_ticks":2' || { echo "FAIL: 2 price ticks expected"; exit 1; }
+          echo "$out" | grep -q '"orders_seen":1' || { echo "FAIL: 1 order expected"; exit 1; }
+          echo "$out" | grep -q '"winner_confirmed":true' || { echo "FAIL: the claimed winner must survive the equity replay"; exit 1; }
+          echo "$out" | grep -q '"rogue":\[\]' || { echo "FAIL: no rogue action expected"; exit 1; }
+          # forged: hashes all valid, but round 2 marks AAPL 500c above what the
+          # seed produces — an invented rally that hands seat 2 the win.
+          lex run --allow-effects io,crypto tools/gen_trading_forged.lex gen '"/tmp/trading_forged.jsonl"'
+          fg="$(lex run --allow-effects io src/arena/verify.lex verify '"trading"' '"/tmp/trading_forged.jsonl"' || true)"
+          echo "$fg"
+          echo "$fg" | grep -q '"intact":true' || { echo "FAIL: forged trail hashes should still be intact"; exit 1; }
+          echo "$fg" | grep -q "doesn't match the seed-derived tape" || { echo "FAIL: the rigged price tick must be flagged"; exit 1; }
+          echo "$fg" | grep -q '"verified":false' || { echo "FAIL: a rigged tape must be rejected"; exit 1; }
+          # tamper a recorded fill price → its content id breaks → intact:false.
+          sed 's/\\"qty\\":10/\\"qty\\":11/' /tmp/trading_session1.jsonl > /tmp/trading_bad.jsonl
+          tp="$(lex run --allow-effects io src/arena/verify.lex verify '"trading"' '"/tmp/trading_bad.jsonl"' || true)"
+          echo "$tp"
+          echo "$tp" | grep -q '"intact":false' || { echo "FAIL: tampered trading trail must break the hash chain"; exit 1; }
+          echo "$tp" | grep -q '"verified":false' || { echo "FAIL: tampered trail must be rejected"; exit 1; }
+          echo "TRADING VERIFY GREEN"
 
       - name: Policy-eval leaderboard (rank rollouts; cheat trails disqualified)
         run: |
