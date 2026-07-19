@@ -14,11 +14,16 @@
 #
 # Effects: pure.
 
-import "std.str"    as str
-import "std.int"    as int
-import "std.list"   as list
-import "std.json"   as json
-import "std.map"    as map
+import "std.str" as str
+
+import "std.int" as int
+
+import "std.list" as list
+
+import "std.json" as json
+
+import "std.map" as map
+
 import "std.crypto" as crypto
 
 import "../arena/trail_file" as tf
@@ -29,28 +34,7 @@ import "../arena/trail_file" as tf
 type Territory = { id :: Str, neighbors :: List[Str] }
 
 fn territory_data() -> List[Territory] {
-  [
-    { id: "N1", neighbors: ["N2", "N4", "C1"] },
-    { id: "N2", neighbors: ["N1", "N3"] },
-    { id: "N3", neighbors: ["N2", "N4", "E4"] },
-    { id: "N4", neighbors: ["N3", "N1", "W4"] },
-    { id: "W1", neighbors: ["W2", "W4", "C2"] },
-    { id: "W2", neighbors: ["W1", "W3"] },
-    { id: "W3", neighbors: ["W2", "W4", "S4"] },
-    { id: "W4", neighbors: ["W3", "W1", "N4"] },
-    { id: "E1", neighbors: ["E2", "E4", "C3"] },
-    { id: "E2", neighbors: ["E1", "E3"] },
-    { id: "E3", neighbors: ["E2", "E4", "S2"] },
-    { id: "E4", neighbors: ["E3", "E1", "N3"] },
-    { id: "S1", neighbors: ["S2", "S4", "C4"] },
-    { id: "S2", neighbors: ["S1", "S3", "E3"] },
-    { id: "S3", neighbors: ["S2", "S4"] },
-    { id: "S4", neighbors: ["S3", "S1", "W3"] },
-    { id: "C1", neighbors: ["C2", "C4", "N1"] },
-    { id: "C2", neighbors: ["C1", "C3", "W1"] },
-    { id: "C3", neighbors: ["C2", "C4", "E1"] },
-    { id: "C4", neighbors: ["C3", "C1", "S1"] },
-  ]
+  [{ id: "N1", neighbors: ["N2", "N4", "C1"] }, { id: "N2", neighbors: ["N1", "N3"] }, { id: "N3", neighbors: ["N2", "N4", "E4"] }, { id: "N4", neighbors: ["N3", "N1", "W4"] }, { id: "W1", neighbors: ["W2", "W4", "C2"] }, { id: "W2", neighbors: ["W1", "W3"] }, { id: "W3", neighbors: ["W2", "W4", "S4"] }, { id: "W4", neighbors: ["W3", "W1", "N4"] }, { id: "E1", neighbors: ["E2", "E4", "C3"] }, { id: "E2", neighbors: ["E1", "E3"] }, { id: "E3", neighbors: ["E2", "E4", "S2"] }, { id: "E4", neighbors: ["E3", "E1", "N3"] }, { id: "S1", neighbors: ["S2", "S4", "C4"] }, { id: "S2", neighbors: ["S1", "S3", "E3"] }, { id: "S3", neighbors: ["S2", "S4"] }, { id: "S4", neighbors: ["S3", "S1", "W3"] }, { id: "C1", neighbors: ["C2", "C4", "N1"] }, { id: "C2", neighbors: ["C1", "C3", "W1"] }, { id: "C3", neighbors: ["C2", "C4", "E1"] }, { id: "C4", neighbors: ["C3", "C1", "S1"] }]
 }
 
 fn territories() -> List[Str] {
@@ -301,6 +285,7 @@ fn deal_get_armies(payload :: Str, tid :: Str) -> Int {
 
 # ── board replay ─────────────────────────────────────────────────────────
 type TerrState = { owner :: Int, armies :: Int }
+
 type Board = Map[Str, TerrState]
 
 fn board_get(b :: Board, tid :: Str) -> TerrState {
@@ -334,12 +319,49 @@ fn owned_count(b :: Board, seat :: Int) -> Int {
   })
 }
 
+fn seat_armies(b :: Board, seat :: Int) -> Int {
+  list.fold(territories(), 0, fn (acc :: Int, tid :: Str) -> Int {
+    let c := board_get(b, tid)
+    if c.owner == seat {
+      acc + c.armies
+    } else {
+      acc
+    }
+  })
+}
+
+# The round-cap winner, tied to src/conquest.lex's round_cap_tiebreak EXACTLY:
+# most territories, then most total armies, then lowest seat number. A fully
+# deterministic total order, so the replayed winner is independent of the
+# candidate iteration order. (The old version ranked on territories alone and
+# broke ties by scan order, which rejected legitimate army-decided round-cap
+# wins as "rogue".)
 fn best_by_territories(b :: Board, cands :: List[Int]) -> Int {
   list.fold(cands, -1, fn (best :: Int, s :: Int) -> Int {
-    if best < 0 or owned_count(b, s) > owned_count(b, best) {
+    if best < 0 {
       s
     } else {
-      best
+      let st := owned_count(b, s)
+      let bt := owned_count(b, best)
+      if st > bt {
+        s
+      } else {
+        if st == bt {
+          let sa := seat_armies(b, s)
+          let ba := seat_armies(b, best)
+          if sa > ba {
+            s
+          } else {
+            if sa == ba and s < best {
+              s
+            } else {
+              best
+            }
+          }
+        } else {
+          best
+        }
+      }
     }
   })
 }
@@ -348,9 +370,13 @@ fn best_by_territories(b :: Board, cands :: List[Int]) -> Int {
 # (json.parse handles nested lists/records fine — only the setup deal's
 # territory-id-keyed object needed the manual approach above) ──────────────
 type Attack = { from :: Str, to :: Str, by :: Int, attacker_dice :: List[Int], defender_dice :: List[Int], att_losses :: Int, def_losses :: Int, captured :: Bool }
+
 type ReinforceItem = { territory :: Str, n :: Int }
+
 type Reinforce = { by :: Int, placements :: List[ReinforceItem] }
+
 type Fortify = { by :: Int, from :: Str, to :: Str, n :: Int }
+
 type GameOver = { winner :: Int, reason :: Str }
 
 type Tally = { intact :: Bool, saw_setup :: Bool, seed :: Int, board :: Board, dice_counter :: Int, reinforces :: Int, attacks :: Int, fortifies :: Int, claimed_winner :: Int, claimed_reason :: Str, rogue :: List[Str] }
@@ -371,92 +397,96 @@ fn step(t :: Tally, l :: tf.Line) -> Tally {
         { intact: intact, saw_setup: true, seed: sd, board: b, dice_counter: 0, reinforces: t.reinforces, attacks: t.attacks, fortifies: t.fortifies, claimed_winner: t.claimed_winner, claimed_reason: t.claimed_reason, rogue: t.rogue }
       }
     } else {
-    if str.contains(l.payload_json, "\"kind\":\"attack\"") {
-      match (json.parse(l.payload_json) :: Result[Attack, Str]) {
-        Err(_) => { intact: intact, saw_setup: t.saw_setup, seed: t.seed, board: t.board, dice_counter: t.dice_counter, reinforces: t.reinforces, attacks: t.attacks, fortifies: t.fortifies, claimed_winner: t.claimed_winner, claimed_reason: t.claimed_reason, rogue: t.rogue },
-        Ok(a) => {
-          let from_st := board_get(t.board, a.from)
-          let to_st := board_get(t.board, a.to)
-          let owner_ok := t.saw_setup and from_st.owner == a.by and to_st.owner != a.by
-          let adjacency_ok := are_adjacent(a.from, a.to)
-          let att_n := list.len(a.attacker_dice)
-          let def_n := list.len(a.defender_dice)
-          let att_n_ok := att_n == min_int(3, from_st.armies - 1)
-          let def_n_ok := def_n == min_int(2, to_st.armies)
-          let rederived_att := sort_desc(rederive_dice(t.seed, t.dice_counter, att_n))
-          let rederived_def := sort_desc(rederive_dice(t.seed, t.dice_counter + att_n, def_n))
-          let dice_ok := dice_eq(rederived_att, a.attacker_dice) and dice_eq(rederived_def, a.defender_dice)
-          let pairs := min_int(att_n, def_n)
-          let expected := compare_dice(a.attacker_dice, a.defender_dice, 0, pairs, 0, 0)
-          let losses_ok := expected.att_losses == a.att_losses and expected.def_losses == a.def_losses
-          let new_from_armies := from_st.armies - a.att_losses
-          let new_to_armies := to_st.armies - a.def_losses
-          let expected_captured := new_to_armies <= 0
-          let captured_ok := expected_captured == a.captured
-          let legal := owner_ok and adjacency_ok and att_n_ok and def_n_ok and dice_ok and losses_ok and captured_ok
-          let new_board := if a.captured {
-            map.set(map.set(t.board, a.from, { owner: a.by, armies: 1 }), a.to, { owner: a.by, armies: new_from_armies - 1 })
-          } else {
-            map.set(map.set(t.board, a.from, { owner: from_st.owner, armies: new_from_armies }), a.to, { owner: to_st.owner, armies: new_to_armies })
-          }
-          let msg := str.join(["illegal or forged attack ", a.from, "->", a.to, " by seat ", int.to_str(a.by)], "")
-          { intact: intact, saw_setup: t.saw_setup, seed: t.seed, board: new_board, dice_counter: t.dice_counter + att_n + def_n, reinforces: t.reinforces, attacks: t.attacks + 1, fortifies: t.fortifies, claimed_winner: t.claimed_winner, claimed_reason: t.claimed_reason, rogue: if legal {
-            t.rogue
-          } else {
-            list.concat(t.rogue, [msg])
-          } }
-        },
-      }
-    } else {
-    if str.contains(l.payload_json, "\"kind\":\"reinforce\"") {
-      match (json.parse(l.payload_json) :: Result[Reinforce, Str]) {
-        Err(_) => { intact: intact, saw_setup: t.saw_setup, seed: t.seed, board: t.board, dice_counter: t.dice_counter, reinforces: t.reinforces, attacks: t.attacks, fortifies: t.fortifies, claimed_winner: t.claimed_winner, claimed_reason: t.claimed_reason, rogue: t.rogue },
-        Ok(r) => {
-          let applied := list.fold(r.placements, { board: t.board, ok: true }, fn (st2 :: { board :: Board, ok :: Bool }, item :: ReinforceItem) -> { board :: Board, ok :: Bool } {
-            let cur := board_get(st2.board, item.territory)
-            let legal := t.saw_setup and cur.owner == r.by and item.n > 0
-            if legal {
-              { board: map.set(st2.board, item.territory, { owner: cur.owner, armies: cur.armies + item.n }), ok: st2.ok }
+      if str.contains(l.payload_json, "\"kind\":\"attack\"") {
+        match (json.parse(l.payload_json) :: Result[Attack, Str]) {
+          Err(_) => { intact: intact, saw_setup: t.saw_setup, seed: t.seed, board: t.board, dice_counter: t.dice_counter, reinforces: t.reinforces, attacks: t.attacks, fortifies: t.fortifies, claimed_winner: t.claimed_winner, claimed_reason: t.claimed_reason, rogue: t.rogue },
+          Ok(a) => {
+            let from_st := board_get(t.board, a.from)
+            let to_st := board_get(t.board, a.to)
+            let owner_ok := t.saw_setup and from_st.owner == a.by and to_st.owner != a.by
+            let adjacency_ok := are_adjacent(a.from, a.to)
+            let att_n := list.len(a.attacker_dice)
+            let def_n := list.len(a.defender_dice)
+            let att_n_ok := att_n == min_int(3, from_st.armies - 1)
+            let def_n_ok := def_n == min_int(2, to_st.armies)
+            let rederived_att := sort_desc(rederive_dice(t.seed, t.dice_counter, att_n))
+            let rederived_def := sort_desc(rederive_dice(t.seed, t.dice_counter + att_n, def_n))
+            let dice_ok := dice_eq(rederived_att, a.attacker_dice) and dice_eq(rederived_def, a.defender_dice)
+            let pairs := min_int(att_n, def_n)
+            let expected := compare_dice(a.attacker_dice, a.defender_dice, 0, pairs, 0, 0)
+            let losses_ok := expected.att_losses == a.att_losses and expected.def_losses == a.def_losses
+            let new_from_armies := from_st.armies - a.att_losses
+            let new_to_armies := to_st.armies - a.def_losses
+            let expected_captured := new_to_armies <= 0
+            let captured_ok := expected_captured == a.captured
+            let legal := owner_ok and adjacency_ok and att_n_ok and def_n_ok and dice_ok and losses_ok and captured_ok
+            let new_board := if a.captured {
+              map.set(map.set(t.board, a.from, { owner: a.by, armies: 1 }), a.to, { owner: a.by, armies: new_from_armies - 1 })
             } else {
-              { board: st2.board, ok: false }
+              map.set(map.set(t.board, a.from, { owner: from_st.owner, armies: new_from_armies }), a.to, { owner: to_st.owner, armies: new_to_armies })
             }
-          })
-          { intact: intact, saw_setup: t.saw_setup, seed: t.seed, board: applied.board, dice_counter: t.dice_counter, reinforces: t.reinforces + 1, attacks: t.attacks, fortifies: t.fortifies, claimed_winner: t.claimed_winner, claimed_reason: t.claimed_reason, rogue: if applied.ok {
-            t.rogue
-          } else {
-            list.concat(t.rogue, [str.join(["illegal reinforcement by seat ", int.to_str(r.by)], "")])
-          } }
-        },
-      }
-    } else {
-    if str.contains(l.payload_json, "\"kind\":\"fortify\"") {
-      match (json.parse(l.payload_json) :: Result[Fortify, Str]) {
-        Err(_) => { intact: intact, saw_setup: t.saw_setup, seed: t.seed, board: t.board, dice_counter: t.dice_counter, reinforces: t.reinforces, attacks: t.attacks, fortifies: t.fortifies, claimed_winner: t.claimed_winner, claimed_reason: t.claimed_reason, rogue: t.rogue },
-        Ok(f) => {
-          let from_st := board_get(t.board, f.from)
-          let to_st := board_get(t.board, f.to)
-          let legal := t.saw_setup and from_st.owner == f.by and to_st.owner == f.by and are_adjacent(f.from, f.to) and f.n > 0 and from_st.armies - f.n >= 1
-          let new_board := if legal {
-            map.set(map.set(t.board, f.from, { owner: f.by, armies: from_st.armies - f.n }), f.to, { owner: f.by, armies: to_st.armies + f.n })
-          } else {
-            t.board
+            let msg := str.join(["illegal or forged attack ", a.from, "->", a.to, " by seat ", int.to_str(a.by)], "")
+            { intact: intact, saw_setup: t.saw_setup, seed: t.seed, board: new_board, dice_counter: t.dice_counter + att_n + def_n, reinforces: t.reinforces, attacks: t.attacks + 1, fortifies: t.fortifies, claimed_winner: t.claimed_winner, claimed_reason: t.claimed_reason, rogue: if legal {
+              t.rogue
+            } else {
+              list.concat(t.rogue, [msg])
+            } }
+          },
+        }
+      } else {
+        if str.contains(l.payload_json, "\"kind\":\"reinforce\"") {
+          match (json.parse(l.payload_json) :: Result[Reinforce, Str]) {
+            Err(_) => { intact: intact, saw_setup: t.saw_setup, seed: t.seed, board: t.board, dice_counter: t.dice_counter, reinforces: t.reinforces, attacks: t.attacks, fortifies: t.fortifies, claimed_winner: t.claimed_winner, claimed_reason: t.claimed_reason, rogue: t.rogue },
+            Ok(r) => {
+              let applied := list.fold(r.placements, { board: t.board, ok: true }, fn (st2 :: { board :: Board, ok :: Bool }, item :: ReinforceItem) -> { board :: Board, ok :: Bool } {
+                let cur := board_get(st2.board, item.territory)
+                let legal := t.saw_setup and cur.owner == r.by and item.n > 0
+                if legal {
+                  { board: map.set(st2.board, item.territory, { owner: cur.owner, armies: cur.armies + item.n }), ok: st2.ok }
+                } else {
+                  { board: st2.board, ok: false }
+                }
+              })
+              { intact: intact, saw_setup: t.saw_setup, seed: t.seed, board: applied.board, dice_counter: t.dice_counter, reinforces: t.reinforces + 1, attacks: t.attacks, fortifies: t.fortifies, claimed_winner: t.claimed_winner, claimed_reason: t.claimed_reason, rogue: if applied.ok {
+                t.rogue
+              } else {
+                list.concat(t.rogue, [str.join(["illegal reinforcement by seat ", int.to_str(r.by)], "")])
+              } }
+            },
           }
-          { intact: intact, saw_setup: t.saw_setup, seed: t.seed, board: new_board, dice_counter: t.dice_counter, reinforces: t.reinforces, attacks: t.attacks, fortifies: t.fortifies + 1, claimed_winner: t.claimed_winner, claimed_reason: t.claimed_reason, rogue: if legal {
-            t.rogue
+        } else {
+          if str.contains(l.payload_json, "\"kind\":\"fortify\"") {
+            match (json.parse(l.payload_json) :: Result[Fortify, Str]) {
+              Err(_) => { intact: intact, saw_setup: t.saw_setup, seed: t.seed, board: t.board, dice_counter: t.dice_counter, reinforces: t.reinforces, attacks: t.attacks, fortifies: t.fortifies, claimed_winner: t.claimed_winner, claimed_reason: t.claimed_reason, rogue: t.rogue },
+              Ok(f) => {
+                let from_st := board_get(t.board, f.from)
+                let to_st := board_get(t.board, f.to)
+                let legal := t.saw_setup and from_st.owner == f.by and to_st.owner == f.by and are_adjacent(f.from, f.to) and f.n > 0 and from_st.armies - f.n >= 1
+                let new_board := if legal {
+                  map.set(map.set(t.board, f.from, { owner: f.by, armies: from_st.armies - f.n }), f.to, { owner: f.by, armies: to_st.armies + f.n })
+                } else {
+                  t.board
+                }
+                { intact: intact, saw_setup: t.saw_setup, seed: t.seed, board: new_board, dice_counter: t.dice_counter, reinforces: t.reinforces, attacks: t.attacks, fortifies: t.fortifies + 1, claimed_winner: t.claimed_winner, claimed_reason: t.claimed_reason, rogue: if legal {
+                  t.rogue
+                } else {
+                  list.concat(t.rogue, [str.join(["illegal fortify by seat ", int.to_str(f.by)], "")])
+                } }
+              },
+            }
           } else {
-            list.concat(t.rogue, [str.join(["illegal fortify by seat ", int.to_str(f.by)], "")])
-          } }
-        },
+            if str.contains(l.payload_json, "\"kind\":\"game_over\"") {
+              match (json.parse(l.payload_json) :: Result[GameOver, Str]) {
+                Err(_) => { intact: intact, saw_setup: t.saw_setup, seed: t.seed, board: t.board, dice_counter: t.dice_counter, reinforces: t.reinforces, attacks: t.attacks, fortifies: t.fortifies, claimed_winner: t.claimed_winner, claimed_reason: t.claimed_reason, rogue: t.rogue },
+                Ok(g) => { intact: intact, saw_setup: t.saw_setup, seed: t.seed, board: t.board, dice_counter: t.dice_counter, reinforces: t.reinforces, attacks: t.attacks, fortifies: t.fortifies, claimed_winner: g.winner, claimed_reason: g.reason, rogue: t.rogue },
+              }
+            } else {
+              { intact: intact, saw_setup: t.saw_setup, seed: t.seed, board: t.board, dice_counter: t.dice_counter, reinforces: t.reinforces, attacks: t.attacks, fortifies: t.fortifies, claimed_winner: t.claimed_winner, claimed_reason: t.claimed_reason, rogue: t.rogue }
+            }
+          }
+        }
       }
-    } else {
-    if str.contains(l.payload_json, "\"kind\":\"game_over\"") {
-      match (json.parse(l.payload_json) :: Result[GameOver, Str]) {
-        Err(_) => { intact: intact, saw_setup: t.saw_setup, seed: t.seed, board: t.board, dice_counter: t.dice_counter, reinforces: t.reinforces, attacks: t.attacks, fortifies: t.fortifies, claimed_winner: t.claimed_winner, claimed_reason: t.claimed_reason, rogue: t.rogue },
-        Ok(g) => { intact: intact, saw_setup: t.saw_setup, seed: t.seed, board: t.board, dice_counter: t.dice_counter, reinforces: t.reinforces, attacks: t.attacks, fortifies: t.fortifies, claimed_winner: g.winner, claimed_reason: g.reason, rogue: t.rogue },
-      }
-    } else {
-      { intact: intact, saw_setup: t.saw_setup, seed: t.seed, board: t.board, dice_counter: t.dice_counter, reinforces: t.reinforces, attacks: t.attacks, fortifies: t.fortifies, claimed_winner: t.claimed_winner, claimed_reason: t.claimed_reason, rogue: t.rogue }
-    }}}}}
+    }
   }
 }
 
@@ -465,11 +495,6 @@ type Verdict = { verified :: Bool, intact :: Bool, setup_committed :: Bool, rein
 fn verdict(lines :: List[tf.Line]) -> Verdict {
   let t := list.fold(lines, { intact: true, saw_setup: false, seed: 0, board: map.new(), dice_counter: 0, reinforces: 0, attacks: 0, fortifies: 0, claimed_winner: -1, claimed_reason: "", rogue: [] }, step)
   let living := distinct_owners(t.board)
-  # round_cap games aren't fully round-replayed here (the verifier doesn't
-  # track round numbers independently) — the winner is instead re-checked
-  # against "most territories among still-living seats in the final board",
-  # a weaker but still meaningful check. Elimination games ARE fully
-  # verified: exactly one owner must remain, and it must match the claim.
   let winner_ok := if str.is_empty(t.claimed_reason) {
     false
   } else {
@@ -502,3 +527,4 @@ fn verdict_json(v :: Verdict) -> Str {
   }), ","), "]"], "")
   str.join(["{\"verified\":", b(v.verified), ",\"intact\":", b(v.intact), ",\"setup_committed\":", b(v.setup_committed), ",\"reinforces\":", int.to_str(v.reinforces), ",\"attacks\":", int.to_str(v.attacks), ",\"fortifies\":", int.to_str(v.fortifies), ",\"winner_confirmed\":", b(v.winner_confirmed), ",\"rogue\":", rogue, "}"], "")
 }
+
