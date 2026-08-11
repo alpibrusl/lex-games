@@ -30,9 +30,6 @@ import "lex-trail/event" as ev
 # Result of the capability + turn check.
 type MoveCheck = MoveOk | MoveReject(Str)
 
-# Capability + turn gate. `session_side` is the side this connection is allowed
-# to control (its capability); `move_by` is the side the move claims to act as;
-# `turn` is whose move it currently is.
 fn gate(session_side :: Str, move_by :: Str, turn :: Str) -> MoveCheck {
   if move_by != session_side {
     MoveReject(str.join(["capability denied: this player controls ", session_side, ", cannot act as ", move_by], ""))
@@ -46,17 +43,27 @@ fn gate(session_side :: Str, move_by :: Str, turn :: Str) -> MoveCheck {
 }
 
 fn is_ok(c :: MoveCheck) -> Bool {
-  match c { MoveOk => true, MoveReject(_) => false }
+  match c {
+    MoveOk => true,
+    MoveReject(_) => false,
+  }
 }
 
 fn reason(c :: MoveCheck) -> Str {
-  match c { MoveOk => "", MoveReject(r) => r }
+  match c {
+    MoveOk => "",
+    MoveReject(r) => r,
+  }
 }
 
 # Append an applied move to the hash-chained replay log; returns the new chain
 # head (use it as the parent of the next move). On error the parent is unchanged.
 fn record(log :: trail.Log, parent :: Str, payload :: Str) -> [sql, time] Str {
-  let par := if str.is_empty(parent) { None } else { Some(parent) }
+  let par := if str.is_empty(parent) {
+    None
+  } else {
+    Some(parent)
+  }
   match trail.append(log, "move", par, payload) {
     Ok(ev) => ev.id,
     Err(_) => parent,
@@ -71,7 +78,7 @@ fn issue_token(secret :: Bytes, side :: Str) -> Str {
   let payload := str.concat("game:", side)
   match crypto.ed25519_sign(secret, bytes.from_str(payload)) {
     Ok(sig) => str.join([crypto.base64url_encode(bytes.from_str(payload)), ".", crypto.base64url_encode(sig)], ""),
-    Err(_)  => "",
+    Err(_) => "",
   }
 }
 
@@ -96,7 +103,10 @@ fn verify_side(pubkey_b64 :: Str, pb :: Str, sb :: Str) -> Str {
         Ok(pk) => match crypto.base64url_decode(sb) {
           Err(_) => "",
           Ok(sig) => if crypto.ed25519_verify(pk, bytes.from_str(payload), sig) {
-            match str.strip_prefix(payload, "game:") { Some(s) => s, None => "" }
+            match str.strip_prefix(payload, "game:") {
+              Some(s) => s,
+              None => "",
+            }
           } else {
             ""
           },
@@ -116,7 +126,7 @@ fn issue_match_token(secret :: Bytes, side :: Str, match_id :: Str, expires_at_m
   let payload := str.join(["game:", side, ":", match_id, ":", int_to_str(expires_at_ms)], "")
   match crypto.ed25519_sign(secret, bytes.from_str(payload)) {
     Ok(sig) => str.join([crypto.base64url_encode(bytes.from_str(payload)), ".", crypto.base64url_encode(sig)], ""),
-    Err(_)  => "",
+    Err(_) => "",
   }
 }
 
@@ -160,20 +170,35 @@ fn claim_side(payload :: Str, match_id :: Str, now_ms :: Int) -> Str {
   let side := nth_or(fields, 1)
   let mid := nth_or(fields, 2)
   let exp := nth_or(fields, 3)
-  if tag == "game" and mid == match_id and now_ms < str_to_int_or(exp, 0) { side } else { "" }
+  if tag == "game" and mid == match_id and now_ms < str_to_int_or(exp, 0) {
+    side
+  } else {
+    ""
+  }
 }
 
 # i-th element of a Str list, or "" if out of range (no list.drop dependency).
 fn nth_or(xs :: List[Str], i :: Int) -> Str {
   if i <= 0 {
-    match list.head(xs) { Some(s) => s, None => "" }
+    match list.head(xs) {
+      Some(s) => s,
+      None => "",
+    }
   } else {
     nth_or(list.tail(xs), i - 1)
   }
 }
 
-fn int_to_str(n :: Int) -> Str { int.to_str(n) }
-fn str_to_int_or(s :: Str, d :: Int) -> Int { match str.to_int(s) { Some(n) => n, None => d } }
+fn int_to_str(n :: Int) -> Str {
+  int.to_str(n)
+}
+
+fn str_to_int_or(s :: Str, d :: Int) -> Int {
+  match str.to_int(s) {
+    Some(n) => n,
+    None => d,
+  }
+}
 
 # ── Capability grants (cross-trail: one verified trail vouches to another) ────
 # A match token above binds a SIDE to one match. A capability grant instead
@@ -190,7 +215,7 @@ fn issue_capability_grant(secret :: Bytes, agent_id :: Str, capability :: Str, l
   let payload := str.join(["cap:", agent_id, ":", capability, ":", int_to_str(level), ":", source_root, ":", int_to_str(expires_at_ms)], "")
   match crypto.ed25519_sign(secret, bytes.from_str(payload)) {
     Ok(sig) => str.join([crypto.base64url_encode(bytes.from_str(payload)), ".", crypto.base64url_encode(sig)], ""),
-    Err(_)  => "",
+    Err(_) => "",
   }
 }
 
@@ -198,7 +223,10 @@ fn issue_capability_grant(secret :: Bytes, agent_id :: Str, capability :: Str, l
 # failure — bad signature, wrong agent, expired, or malformed — so a caller
 # can treat a rejected grant as "no capability" without a separate error path.
 type GrantClaim = { ok :: Bool, capability :: Str, level :: Int, source_root :: Str }
-fn no_grant() -> GrantClaim { { ok: false, capability: "", level: 0, source_root: "" } }
+
+fn no_grant() -> GrantClaim {
+  { ok: false, capability: "", level: 0, source_root: "" }
+}
 
 # Recover a capability grant, but only if the signature verifies, it names
 # this agent_id, and now_ms < expiry. Otherwise no_grant() (callers then treat
@@ -238,12 +266,12 @@ fn verify_grant(pubkey_b64 :: Str, pb :: Str, sb :: Str, agent_id :: Str, now_ms
 # enforce agent + expiry.
 fn claim_grant(payload :: Str, agent_id :: Str, now_ms :: Int) -> GrantClaim {
   let fields := str.split(payload, ":")
-  let tag  := nth_or(fields, 0)
-  let aid  := nth_or(fields, 1)
-  let cap  := nth_or(fields, 2)
-  let lvl  := nth_or(fields, 3)
+  let tag := nth_or(fields, 0)
+  let aid := nth_or(fields, 1)
+  let cap := nth_or(fields, 2)
+  let lvl := nth_or(fields, 3)
   let root := nth_or(fields, 4)
-  let exp  := nth_or(fields, 5)
+  let exp := nth_or(fields, 5)
   if tag == "cap" and aid == agent_id and now_ms < str_to_int_or(exp, 0) {
     { ok: true, capability: cap, level: str_to_int_or(lvl, 0), source_root: root }
   } else {
@@ -258,6 +286,7 @@ fn claim_grant(payload :: Str, agent_id :: Str, now_ms :: Int) -> GrantClaim {
 # false the moment any link is tampered. This is the demonstrable half of
 # "tamper-evident": not asserted, re-checked.
 type Verdict = { count :: Int, valid :: Bool }
+
 fn verify_log(log :: trail.Log) -> [sql] Verdict {
   match trail.range(log, 0, 9999999999999) {
     Err(_) => { count: 0, valid: false },
@@ -272,5 +301,9 @@ fn verify_log(log :: trail.Log) -> [sql] Verdict {
 # recompute the authoritative score — the score is never trusted from a client.
 # verify_log proves the chain wasn't tampered; replay proves what the score IS.
 fn all_events(log :: trail.Log) -> [sql] List[ev.Event] {
-  match trail.range(log, 0, 9999999999999) { Err(_) => [], Ok(evs) => evs }
+  match trail.range(log, 0, 9999999999999) {
+    Err(_) => [],
+    Ok(evs) => evs,
+  }
 }
+

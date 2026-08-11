@@ -1,0 +1,9 @@
+{"id":"c6c5cec49d37d83d6e00aded3249d6e2bfd079ae730157c021fcc8102ea5c0aa","kind":"training.opened","parent":"","payload_json":"{\"agent_id\":\"stable-alpha\"}","ts_ms":1782500000000}
+{"id":"425a49cf7f57d7addca774fda04f7a4bb31c1994237b122a8186ec91ae763ef2","kind":"checkpoint","parent":"","payload_json":"{\"action\":\"idle\"}","ts_ms":1782500011000}
+{"id":"85ee9b79d2e0af0c8eeec958098853601e3c216743fea4a12563369306fed2d3","kind":"checkpoint","parent":"","payload_json":"{\"action\":\"invest\"}","ts_ms":1782500011100}
+{"id":"af8da9649caa59b78d5d915f092851bf99bd25fc63a80507a0060ac5aac72590","kind":"checkpoint","parent":"","payload_json":"{\"action\":\"idle\"}","ts_ms":1782500061100}
+{"id":"ffb619666e9017f02d6755022f3884423d605fbd4384b6ce12ed957a6a23976f","kind":"checkpoint","parent":"","payload_json":"{\"action\":\"invest\"}","ts_ms":1782500061100}
+{"id":"1ddea923448a831565b9c7d8984de8d244e8c0abbf571c5b5d346bd601419e20","kind":"checkpoint","parent":"","payload_json":"{\"action\":\"invest\"}","ts_ms":1782500061200}
+{"id":"fe6ddddd0dfba43651a6e0b8e3fca80b71df29e3d8044ca53d1f380c3e8e669e","kind":"checkpoint","parent":"","payload_json":"{\"action\":\"prestige\"}","ts_ms":1782500261200}
+{"id":"14c19b3b8849dbe2aa41b5ebf8c51335d7a650f865ef47df25578ff8db5af866","kind":"checkpoint","parent":"","payload_json":"{\"action\":\"idle\"}","ts_ms":1782500861200}
+{"id":"0fc50f8043e6bca16c325dbdd3d7959904a7c5446d9047f28d2f6e6045991c7e","kind":"checkpoint","parent":"","payload_json":"{\"action\":\"invest\"}","ts_ms":1782500861200}
