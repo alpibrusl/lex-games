@@ -90,6 +90,7 @@ src/
   games/conquest.lex     Conquest — deal and seed committed up front; re-derives every dice roll → verdict (no rigged deal)
   games/trading.lex      Trading — seed, bankroll and price-walk parameters committed up front → verdict (no rigged walk)
   games/robot_task.lex   Robot Task verifier — folds a lex-robot run trail → scored verdict
+  games/stable_training.lex  Stable Training — idle/incremental economy → capped capability_level
   games/template.lex     TEMPLATE — copy this to start a new game's verifier
   arena/trail_file.lex   portable JSONL trail format (self-verifying; matches the finance arena)
   arena/export.lex       sqlite lex-trail → JSONL (client side, after a local match)
@@ -104,6 +105,9 @@ src/
   arena/reputation.lex      a DID-anchored agent reputation registry — each session's trail is REPLAYED through its game's verifier; only recomputed, verified scores accumulate into per-did:lex trustMetrics
 cli/games                thin launcher
 docs/ADDING_A_GAME.md    how to add your own game (the game contract + steps)
+docs/CAPABILITY_GRANTS.md how a fact earned on one trail (e.g. training) is
+                          minted into a signed, cross-trail grant another
+                          verifier can trust without re-replaying the source
 testdata/                a real sample trail (CI verifies it)
 ```
 
@@ -225,6 +229,35 @@ hands/fingers quasi-static), `max_force` ≤ `280000` (280 N transient). Then
 provable from the trail*. (Caveat: 15066 limits are ultimately about pressure =
 force ÷ contact area, which the grant doesn't model — the force caps are a sound,
 conservative proxy.)
+
+## Stable Training — an idle economy that mints capability
+
+`games/stable_training.lex` applies the "trail, not a score" model to
+incremental-game mechanics: a stable's agent earns a budget passively over
+real elapsed time, reinvests it into automation tiers (linear rate gain,
+exponential cost), and may prestige — cash in accumulated budget for a
+permanent rate bonus, resetting tier and budget to zero. Every idle-game
+staple (compounding growth, automation, prestige) is recomputed, never
+claimed: elapsed time is the delta between consecutive trail lines' own
+server-stamped `ts_ms` (a client can't back-date a checkpoint — that breaks
+`tf.line_intact`), and budget/tier/prestige are pure functions of that time
+plus the recorded action sequence. There is nothing left for a forged trail
+to lie about except the action names themselves.
+
+```bash
+lex run --allow-effects io tools/gen_stable_training_sample.lex gen '"testdata/stable_training-sample.jsonl"'
+lex run --allow-effects io src/arena/verify.lex verify '"stable_training"' '"testdata/stable_training-sample.jsonl"'
+#   {"verified":true,"intact":true,"legal":true,...,"capability_level":4,"score":15714}
+```
+
+The verdict's `capability_level` is a capped, monotonic function of tier +
+prestige_count — not itself a usable grant. Minting a signed
+`lex_games.issue_capability_grant()` token from it (so a *different* game's
+match verifier can trust the level without re-replaying weeks of training
+checkpoints) is a server-side step covered in
+**[docs/CAPABILITY_GRANTS.md](docs/CAPABILITY_GRANTS.md)** — the same
+signed-attestation trust model `issue_match_token` already uses, generalized
+to carry a fact across trails instead of just a side across turns.
 
 ## Games as a safe RL/eval harness
 

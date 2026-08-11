@@ -30,7 +30,7 @@ jobs:
       - name: Type-check
         run: |
           set -euo pipefail
-          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/nbazaar.lex src/games/gbazaar.lex src/games/consent.lex src/games/capability.lex src/games/ops.lex src/games/notary.lex src/games/wedding.lex src/games/werewolf.lex src/games/trading.lex src/games/robot_task.lex src/games/template.lex src/arena/verify.lex src/arena/rank.lex src/arena/leaderboard.lex src/arena/elo.lex src/arena/standings.lex src/arena/season.lex src/arena/nbazaar_season.lex src/arena/bazaar_season.lex src/arena/reputation.lex src/arena/export.lex tools/gen_robot_structured.lex tools/gen_robot_sample.lex tools/gen_nbazaar_sample.lex tools/gen_gbazaar_forged.lex tools/gen_gbazaar_session2.lex tools/gen_consent_forged.lex tools/gen_capability_forged.lex tools/gen_ops_forged.lex tools/gen_notary_sample.lex tools/gen_notary_forged.lex tools/gen_wedding_sample.lex tools/gen_wedding_forged.lex tools/gen_werewolf_sample.lex tools/gen_werewolf_forged.lex tools/gen_trading_sample.lex tools/gen_trading_forged.lex tools/gen_policy_fixtures.lex tools/gen_template_sample.lex; do
+          for f in src/lex_games.lex src/arena/trail_file.lex src/games/bazaar.lex src/games/nbazaar.lex src/games/gbazaar.lex src/games/consent.lex src/games/capability.lex src/games/ops.lex src/games/notary.lex src/games/wedding.lex src/games/werewolf.lex src/games/trading.lex src/games/robot_task.lex src/games/template.lex src/arena/verify.lex src/arena/rank.lex src/arena/leaderboard.lex src/arena/elo.lex src/arena/standings.lex src/arena/season.lex src/arena/nbazaar_season.lex src/arena/bazaar_season.lex src/arena/reputation.lex src/arena/export.lex tools/gen_robot_structured.lex tools/gen_robot_sample.lex tools/gen_nbazaar_sample.lex tools/gen_gbazaar_forged.lex tools/gen_gbazaar_session2.lex tools/gen_consent_forged.lex tools/gen_capability_forged.lex tools/gen_ops_forged.lex tools/gen_notary_sample.lex tools/gen_notary_forged.lex tools/gen_wedding_sample.lex tools/gen_wedding_forged.lex tools/gen_werewolf_sample.lex tools/gen_werewolf_forged.lex tools/gen_trading_sample.lex tools/gen_trading_forged.lex tools/gen_policy_fixtures.lex tools/gen_template_sample.lex src/games/stable_training.lex tools/gen_stable_training_sample.lex tools/gen_stable_training_forged.lex; do
             echo "== $f =="; lex check "$f"
           done
 
@@ -98,6 +98,29 @@ jobs:
           echo "$bad"
           echo "$bad" | grep -q '"verified":false' || { echo "FAIL: tampered template trail should be rejected"; exit 1; }
           echo "TEMPLATE VERIFY GREEN"
+
+      - name: Stable Training — verify an idle/incremental economy trail (honest → verified, forged action → rejected)
+        run: |
+          set -euo pipefail
+          # the generator and the committed fixture must stay in sync
+          lex run --allow-effects io tools/gen_stable_training_sample.lex gen '"/tmp/stable_training-regen.jsonl"'
+          diff /tmp/stable_training-regen.jsonl testdata/stable_training-sample.jsonl || { echo "FAIL: committed stable_training sample must match its generator"; exit 1; }
+          out="$(lex run --allow-effects io src/arena/verify.lex verify '"stable_training"' '"testdata/stable_training-sample.jsonl"')"
+          echo "$out"
+          echo "$out" | grep -q '"verified":true' || { echo "FAIL: stable_training sample should verify"; exit 1; }
+          echo "$out" | grep -q '"tier":1' || { echo "FAIL: tier must recompute to 1"; exit 1; }
+          echo "$out" | grep -q '"prestige_count":1' || { echo "FAIL: prestige_count must recompute to 1"; exit 1; }
+          echo "$out" | grep -q '"capability_level":4' || { echo "FAIL: capability_level must recompute to 4"; exit 1; }
+          echo "$out" | grep -q '"lifetime_budget":15714' || { echo "FAIL: lifetime_budget must recompute to 15714"; exit 1; }
+          # forged: hashes all valid (ev.make computed every id), but one checkpoint
+          # names an action the rules don't know — legality is recomputed, not inferred.
+          lex run --allow-effects io tools/gen_stable_training_forged.lex gen '"/tmp/stable_training_forged.jsonl"'
+          fg="$(lex run --allow-effects io src/arena/verify.lex verify '"stable_training"' '"/tmp/stable_training_forged.jsonl"' || true)"
+          echo "$fg"
+          echo "$fg" | grep -q '"intact":true' || { echo "FAIL: forged trail hashes should still be intact"; exit 1; }
+          echo "$fg" | grep -q '"legal":false' || { echo "FAIL: the unknown action must be flagged illegal"; exit 1; }
+          echo "$fg" | grep -q '"verified":false' || { echo "FAIL: an illegal-action trail must be rejected"; exit 1; }
+          echo "STABLE TRAINING VERIFY GREEN"
 
       - name: N-player Bazaar — verify a multi-model match trail (honest → verified, tampered → rejected)
         run: |

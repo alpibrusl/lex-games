@@ -43,6 +43,8 @@ import "../games/template" as template
 
 import "../games/robot_task" as robot_task
 
+import "../games/stable_training" as stable_training
+
 # Register a new game here: add an `if game == "<name>"` branch that reads the
 # trail, calls your game's verdict/verdict_json, and returns 0 (verified) or 1.
 # (See docs/ADDING_A_GAME.md.) The read+print+return shape is identical per game.
@@ -170,8 +172,18 @@ fn verify(game :: Str, trail_path :: Str) -> [io] Int {
                                   1
                                 }
                               } else {
-                                let __lex_discard_15 := io.print(str.concat("{\"verified\":false,\"error\":\"unknown game: ", str.concat(game, "\"}")))
-                                1
+                                if game == "stable_training" {
+                                  let v := stable_training.verdict(lines)
+                                  let __lex_discard_16 := io.print(stable_training.verdict_json(v))
+                                  if v.verified {
+                                    0
+                                  } else {
+                                    1
+                                  }
+                                } else {
+                                  let __lex_discard_15 := io.print(str.concat("{\"verified\":false,\"error\":\"unknown game: ", str.concat(game, "\"}")))
+                                  1
+                                }
                               }
                             }
                           }
