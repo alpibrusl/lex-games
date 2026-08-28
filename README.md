@@ -308,3 +308,9 @@ Verifier + Bazaar Draft + Robot Task + policy-eval leaderboard + ELO seasons,
 verified end-to-end (incl. against a real `lex-robot` run trail). More games'
 replay rules and a `verify.lex` dispatch per game land as each is wired into the
 hosted arena.
+
+## License
+
+Copyright (c) 2026 lex-games contributors.
+
+Licensed under the [EUPL-1.2](LICENSE) — the European Union Public Licence, as used across the `lex-*` ecosystem.
